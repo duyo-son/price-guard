@@ -1,0 +1,45 @@
+pre-commit:
+  parallel: false
+  jobs:
+    - name: typecheck
+      run: npm run typecheck
+    - name: lint
+      run: npm run lint
+    - name: test
+      run: npm test
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: |
+        msg=$(cat {1})
+        if ! echo "$msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|build|ci|perf)(\(.+\))?: .+"; then
+          echo "❌ 커밋 메시지 형식이 올바르지 않습니다."
+          echo "   형식: <type>(<scope>): <subject>"
+          echo "   예시: feat(content): 쿠팡 상품 감지기 추가"
+          exit 1
+        fi
+
+# pre-commit:
+#   parallel: true
+#   jobs:
+#     - run: yarn eslint {staged_files}
+#       glob: "*.{js,ts,jsx,tsx}"
+#
+#     - name: rubocop
+#       glob: "*.rb"
+#       exclude:
+#         - config/application.rb
+#         - config/routes.rb
+#       run: bundle exec rubocop --force-exclusion -- {all_files}
+#
+#     - name: govet
+#       files: git ls-files -m
+#       glob: "*.go"
+#       run: go vet -- {files}
+#
+#     - script: "hello.js"
+#       runner: node
+#
+#     - script: "hello.go"
+#       runner: go run
