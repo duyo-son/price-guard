@@ -1,10 +1,14 @@
 import { createGenericDetector } from './detector.js';
 import { createCoupangDetector } from './sites/coupang.js';
+import { createNaverSmartStoreDetector } from './sites/naver-smartstore.js';
 import { showRegisterPanel } from './register-panel.js';
 
 function selectDetector(doc: Document, url: string): ReturnType<typeof createGenericDetector> {
   if (/coupang\.com\/vp\/products\//.test(url)) {
     return createCoupangDetector(doc, url);
+  }
+  if (/smartstore\.naver\.com\/[^/]+\/products\//.test(url)) {
+    return createNaverSmartStoreDetector(doc, url);
   }
   return createGenericDetector(doc, url);
 }

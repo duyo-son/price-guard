@@ -3,6 +3,8 @@ import type { Message, ProductRegisterPayload, TrackedProduct } from '../shared/
 import { ALARM_NAMES } from '../shared/constants.js';
 import { registerDailyAlarm, onAlarmFired } from './alarm-manager.js';
 import { notifyTargetPriceMet, notifyPriceDropped } from './notifier.js';
+import { fetchCoupangPrice } from './sites/coupang.js';
+import { fetchNaverSmartStorePrice } from './sites/naver-smartstore.js';
 
 const storage = createStorageService();
 
@@ -93,12 +95,13 @@ async function checkAllPrices(): Promise<void> {
   }
 }
 
-import { fetchCoupangPrice } from './sites/coupang.js';
-
 // 쇼핑몰별 가격 조회 라우터
 function fetchCurrentPrice(url: string): Promise<number | null> {
   if (/coupang\.com\/vp\/products\//.test(url)) {
     return fetchCoupangPrice(url);
+  }
+  if (/smartstore\.naver\.com\/[^/]+\/products\//.test(url)) {
+    return fetchNaverSmartStorePrice(url);
   }
   return Promise.resolve(null);
 }
