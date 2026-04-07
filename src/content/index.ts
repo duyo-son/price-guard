@@ -1,8 +1,16 @@
 import { createGenericDetector } from './detector.js';
+import { createCoupangDetector } from './sites/coupang.js';
 import { showRegisterPanel } from './register-panel.js';
 
+function selectDetector(doc: Document, url: string): ReturnType<typeof createGenericDetector> {
+  if (/coupang\.com\/vp\/products\//.test(url)) {
+    return createCoupangDetector(doc, url);
+  }
+  return createGenericDetector(doc, url);
+}
+
 function tryDetectAndShow(): void {
-  const detector = createGenericDetector(document, location.href);
+  const detector = selectDetector(document, location.href);
   if (!detector.isProductPage()) return;
 
   const product = detector.extractProduct();

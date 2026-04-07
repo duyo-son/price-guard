@@ -93,8 +93,12 @@ async function checkAllPrices(): Promise<void> {
   }
 }
 
-// TODO: 쇼핑몰별 가격 파싱 구현 (현재는 placeholder)
-// 각 쇼핑몰 지원 추가 시 src/background/sites/ 디렉토리에 구현
-function fetchCurrentPrice(_url: string): Promise<number | null> {
+import { fetchCoupangPrice } from './sites/coupang.js';
+
+// 쇼핑몰별 가격 조회 라우터
+function fetchCurrentPrice(url: string): Promise<number | null> {
+  if (/coupang\.com\/vp\/products\//.test(url)) {
+    return fetchCoupangPrice(url);
+  }
   return Promise.resolve(null);
 }
