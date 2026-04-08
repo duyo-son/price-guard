@@ -1,7 +1,7 @@
 import { createGenericDetector } from './detector.js';
 import { createCoupangDetector } from './sites/coupang.js';
 import { createNaverSmartStoreDetector } from './sites/naver-smartstore.js';
-import { showRegisterPanel, hideRegisterPanel } from './register-panel.js';
+import { showRegisterPanel, showTrackingFab, hideRegisterPanel } from './register-panel.js';
 import type { ProductDetectedPayload } from '../shared/types.js';
 
 const LOG = '[PriceGuard]';
@@ -22,19 +22,25 @@ function selectDetector(doc: Document, url: string): ReturnType<typeof createGen
  * background에 PRODUCT_DETECTED 메시지를 보내고
  * 이미 등록된 상품인지 여부(isRegistered)를 반환한다.
  */
+interface DetectedResult {
+  isRegistered: boolean;
+  lowestPrice?: number;
+  registeredAt?: number;
+}
+
 async function sendDetectedMessage(
   detected: boolean,
   name?: string,
   url?: string,
-): Promise<boolean> {
+): Promise<DetectedResult> {
   const payload: ProductDetectedPayload = { detected, name, url };
   try {
-    const res: { success: boolean; data?: { isRegistered: boolean } } | undefined =
+    const res: { success: boolean; data?: DetectedResult } | undefined =
       await chrome.runtime.sendMessage({ type: 'PRODUCT_DETECTED', payload });
-    return res?.data?.isRegistered ?? false;
+    return res?.data ?? { isRegistered: false };
   } catch {
     // Service Worker 비활성 시 무시
-    return false;
+    return { isRegistered: false };
   }
 }
 
@@ -61,11 +67,12 @@ async function attemptDetect(targetHref: string, retryCount: number): Promise<vo
 
     if (product) {
       console.log(LOG, '추출 성공:', product.name, product.price);
-      const isRegistered = await sendDetectedMessage(true, product.name, product.url);
-      if (!isRegistered) {
+      const result = await sendDetectedMessage(true, product.name, product.url);
+      if (!result.isRegistered) {
         showRegisterPanel(product);
+      } else {
+        showTrackingFab(product, result.lowestPrice, result.registeredAt);
       }
-      // isRegistered=true인 경우 배지가 ✓를 표시하므로 별도 패널 불필요
     } else if (retryCount < MAX_RETRIES) {
       console.log(LOG, `추출 실패 (재시도 ${RETRY_DELAY_MS}ms 후)...`);
       setTimeout(() => { void attemptDetect(targetHref, retryCount + 1); }, RETRY_DELAY_MS);

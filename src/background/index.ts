@@ -45,9 +45,17 @@ async function handleMessage(
 
       // 스토리지 조회는 detected=true이고 url이 있을 때만
       let isRegistered = false;
+      let lowestPrice: number | undefined;
+      let registeredAt: number | undefined;
       if (detected && url !== undefined) {
         const products = await storage.getProducts();
-        isRegistered = products.some(p => p.url === url);
+        const matched = products.find(p => p.url === url);
+        isRegistered = matched !== undefined;
+        if (matched !== undefined) {
+          const allPrices = [matched.currentPrice, ...matched.priceHistory.map(r => r.price)];
+          lowestPrice = Math.min(...allPrices);
+          registeredAt = matched.registeredAt;
+        }
       }
 
       if (tabId !== undefined) {
@@ -65,8 +73,13 @@ async function handleMessage(
           void chrome.action.setBadgeText({ text: '', tabId });
         }
       }
-      // isRegistered를 content script에 반환 → 패널 표시 여부 결정에 사용
-      return { success: true, data: { isRegistered } };
+      // isRegistered + 최저가 정보를 content script에 반환
+      return {
+        success: true,
+        data: isRegistered
+          ? { isRegistered, lowestPrice, registeredAt }
+          : { isRegistered },
+      };
     }
     case 'PRODUCT_REGISTER': {
       const payload = message.payload as ProductRegisterPayload;

@@ -93,7 +93,10 @@ describe('PRODUCT_DETECTED 메시지 처리', () => {
       color: '#9e9e9e',
       tabId: 42,
     });
-    expect(res).toEqual({ success: true, data: { isRegistered: true } });
+    expect(res).toMatchObject({
+      success: true,
+      data: { isRegistered: true, lowestPrice: 10000 },
+    });
   });
 
   it('detected:true이지만 url이 없으면 미등록으로 처리한다', async () => {
