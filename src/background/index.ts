@@ -1,5 +1,5 @@
 import { createStorageService } from '../shared/storage.js';
-import type { Message, ProductRegisterPayload, TrackedProduct } from '../shared/types.js';
+import type { Message, ProductRegisterPayload, TrackedProduct, ProductDetectedPayload } from '../shared/types.js';
 import { ALARM_NAMES } from '../shared/constants.js';
 import { registerDailyAlarm, onAlarmFired } from './alarm-manager.js';
 import { notifyTargetPriceMet, notifyPriceDropped } from './notifier.js';
@@ -26,16 +26,48 @@ onAlarmFired(ALARM_NAMES.DAILY_PRICE_CHECK, checkAllPrices);
 
 // Content script / Popup 메시지 처리
 chrome.runtime.onMessage.addListener(
-  (message: Message, _sender, sendResponse: (response: unknown) => void) => {
-    handleMessage(message)
+  (message: Message, sender: chrome.runtime.MessageSender, sendResponse: (response: unknown) => void) => {
+    handleMessage(message, sender)
       .then(sendResponse)
       .catch((err: unknown) => sendResponse({ success: false, error: String(err) }));
     return true; // 비동기 응답 허용
   },
 );
 
-async function handleMessage(message: Message): Promise<unknown> {
+async function handleMessage(
+  message: Message,
+  sender: chrome.runtime.MessageSender,
+): Promise<unknown> {
   switch (message.type) {
+    case 'PRODUCT_DETECTED': {
+      const { detected, name, url } = message.payload as ProductDetectedPayload;
+      const tabId = sender.tab?.id;
+
+      // 스토리지 조회는 detected=true이고 url이 있을 때만
+      let isRegistered = false;
+      if (detected && url !== undefined) {
+        const products = await storage.getProducts();
+        isRegistered = products.some(p => p.url === url);
+      }
+
+      if (tabId !== undefined) {
+        if (detected) {
+          if (isRegistered) {
+            void chrome.action.setBadgeText({ text: '✓', tabId });
+            void chrome.action.setBadgeBackgroundColor({ color: '#9e9e9e', tabId });
+            console.log(`[PriceGuard] 이미 추적 중: ${name ?? url ?? ''}`);
+          } else {
+            void chrome.action.setBadgeText({ text: '!', tabId });
+            void chrome.action.setBadgeBackgroundColor({ color: '#f6ad55', tabId });
+            console.log(`[PriceGuard] 추적 가능: ${name ?? ''}`);
+          }
+        } else {
+          void chrome.action.setBadgeText({ text: '', tabId });
+        }
+      }
+      // isRegistered를 content script에 반환 → 패널 표시 여부 결정에 사용
+      return { success: true, data: { isRegistered } };
+    }
     case 'PRODUCT_REGISTER': {
       const payload = message.payload as ProductRegisterPayload;
       const product: TrackedProduct = {

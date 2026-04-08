@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Popup build (HTML entry point → dist/popup/)
 export default defineConfig({
   root: resolve(__dirname, 'src/popup'),
+  base: './',
   build: {
     outDir: resolve(__dirname, 'dist/popup'),
     emptyOutDir: true,

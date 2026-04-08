@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Price Guard",
+  "name": "가격파수꾼",
   "version": "0.1.0",
   "description": "쇼핑몰 상품 가격을 추적하고 할인/목표가 달성 시 알림을 받으세요.",
   "permissions": ["storage", "alarms", "notifications", "activeTab"],

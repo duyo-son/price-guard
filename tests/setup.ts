@@ -20,6 +20,10 @@ const chromeMock = {
   notifications: {
     create: vi.fn(),
   },
+  action: {
+    setBadgeText: vi.fn(),
+    setBadgeBackgroundColor: vi.fn(),
+  },
   runtime: {
     onInstalled: { addListener: vi.fn() },
     onStartup: { addListener: vi.fn() },

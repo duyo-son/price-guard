@@ -1,7 +1,12 @@
 import { createGenericDetector } from './detector.js';
 import { createCoupangDetector } from './sites/coupang.js';
 import { createNaverSmartStoreDetector } from './sites/naver-smartstore.js';
-import { showRegisterPanel } from './register-panel.js';
+import { showRegisterPanel, hideRegisterPanel } from './register-panel.js';
+import type { ProductDetectedPayload } from '../shared/types.js';
+
+const LOG = '[PriceGuard]';
+const MAX_RETRIES = 4;
+const RETRY_DELAY_MS = 1000;
 
 function selectDetector(doc: Document, url: string): ReturnType<typeof createGenericDetector> {
   if (/coupang\.com\/vp\/products\//.test(url)) {
@@ -13,14 +18,71 @@ function selectDetector(doc: Document, url: string): ReturnType<typeof createGen
   return createGenericDetector(doc, url);
 }
 
-function tryDetectAndShow(): void {
-  const detector = selectDetector(document, location.href);
-  if (!detector.isProductPage()) return;
-
-  const product = detector.extractProduct();
-  if (product) {
-    showRegisterPanel(product);
+/**
+ * background에 PRODUCT_DETECTED 메시지를 보내고
+ * 이미 등록된 상품인지 여부(isRegistered)를 반환한다.
+ */
+async function sendDetectedMessage(
+  detected: boolean,
+  name?: string,
+  url?: string,
+): Promise<boolean> {
+  const payload: ProductDetectedPayload = { detected, name, url };
+  try {
+    const res: { success: boolean; data?: { isRegistered: boolean } } | undefined =
+      await chrome.runtime.sendMessage({ type: 'PRODUCT_DETECTED', payload });
+    return res?.data?.isRegistered ?? false;
+  } catch {
+    // Service Worker 비활성 시 무시
+    return false;
   }
+}
+
+/**
+ * 상품 페이지 감지 및 패널 표시.
+ * React/동적 렌더링 사이트는 가격을 나중에 주입하므로 실패 시 재시도.
+ * targetHref: 시작 시점의 URL (SPA 내비게이션으로 변경되면 즉시 취소)
+ */
+async function attemptDetect(targetHref: string, retryCount: number): Promise<void> {
+  try {
+    // URL이 이미 바뀌었으면 중단 (SPA 이동)
+    if (location.href !== targetHref) return;
+
+    const detector = selectDetector(document, targetHref);
+
+    if (!detector.isProductPage()) {
+      console.log(LOG, '비상품 페이지:', targetHref);
+      void sendDetectedMessage(false);
+      return;
+    }
+
+    console.log(LOG, `상품 페이지 — 정보 추출 시도 (${retryCount + 1}/${MAX_RETRIES + 1})`);
+    const product = detector.extractProduct();
+
+    if (product) {
+      console.log(LOG, '추출 성공:', product.name, product.price);
+      const isRegistered = await sendDetectedMessage(true, product.name, product.url);
+      if (!isRegistered) {
+        showRegisterPanel(product);
+      }
+      // isRegistered=true인 경우 배지가 ✓를 표시하므로 별도 패널 불필요
+    } else if (retryCount < MAX_RETRIES) {
+      console.log(LOG, `추출 실패 (재시도 ${RETRY_DELAY_MS}ms 후)...`);
+      setTimeout(() => { void attemptDetect(targetHref, retryCount + 1); }, RETRY_DELAY_MS);
+    } else {
+      console.log(LOG, '상품 정보 추출 최종 실패 — 패널 미표시');
+      void sendDetectedMessage(false);
+    }
+  } catch (err) {
+    console.error(LOG, '감지 오류:', err);
+    void sendDetectedMessage(false);
+  }
+}
+
+function tryDetectAndShow(): void {
+  // SPA 이동 시 이전 패널 제거
+  hideRegisterPanel();
+  void attemptDetect(location.href, 0);
 }
 
 // DOM 준비 후 실행

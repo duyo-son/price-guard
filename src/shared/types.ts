@@ -39,6 +39,12 @@ export interface ProductRegisterPayload {
   notifyOnDiscount: boolean;
 }
 
+export interface ProductDetectedPayload {
+  detected: boolean;
+  name?: string;
+  url?: string;
+}
+
 export interface MessageResponse<T = unknown> {
   success: boolean;
   data?: T;

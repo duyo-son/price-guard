@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Price Guard</title>
+    <title>가격파수꾼</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -49,10 +49,16 @@
         padding: 12px 14px;
         box-shadow: 0 1px 5px rgba(0,0,0,.07);
       }
-      .product-name { font-weight: 600; margin-bottom: 3px; font-size: 13px; word-break: break-all; }
-      .product-price { color: #e53e3e; font-weight: 700; font-size: 15px; }
-      .product-meta { color: #888; font-size: 12px; margin-top: 3px; }
-      .product-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+      .product-name { font-weight: 600; margin-bottom: 6px; font-size: 13px; word-break: break-all; line-height: 1.4; }
+      .price-row { display: flex; gap: 16px; margin-bottom: 2px; }
+      .price-item { display: flex; flex-direction: column; gap: 2px; }
+      .price-label { font-size: 11px; color: #999; font-weight: 500; }
+      .price-val { font-weight: 700; font-size: 15px; color: #333; }
+      .price-current { color: #e53e3e; }
+      .price-lowest { color: #667eea; }
+      .price-graph { margin: 8px 0 4px; background: #f7f9ff; border-radius: 6px; overflow: hidden; line-height: 0; }
+      .product-meta { color: #999; font-size: 11px; flex: 1; }
+      .product-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; }
       .btn-remove {
         padding: 4px 10px;
         background: #fff5f5;
@@ -61,6 +67,8 @@
         border-radius: 6px;
         font-size: 12px;
         cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
       .empty-state {
         text-align: center;
@@ -81,7 +89,7 @@
   <body>
     <div class="header">
       <span>💰</span>
-      <h1>Price Guard</h1>
+      <h1>가격파수꾼</h1>
     </div>
     <div class="toolbar">
       <button class="btn btn-outline" id="btn-check-now">지금 확인</button>

@@ -19,6 +19,9 @@ function buildPanel(product: DetectedProduct): HTMLElement {
   panel.innerHTML = renderHTML(product);
   applyStyles(panel);
 
+  const header = panel.querySelector<HTMLElement>('[data-pg="header"]');
+  if (header) makeDraggable(panel, header);
+
   panel.querySelector<HTMLButtonElement>('[data-pg="close"]')?.addEventListener('click', hideRegisterPanel);
   panel.querySelector<HTMLButtonElement>('[data-pg="register"]')?.addEventListener('click', () => {
     void handleRegister(panel, product);
@@ -29,8 +32,8 @@ function buildPanel(product: DetectedProduct): HTMLElement {
 
 function renderHTML(product: DetectedProduct): string {
   return `
-    <div style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 14px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-weight:600;font-size:14px">💰 Price Guard</span>
+    <div data-pg="header" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:12px 14px;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;cursor:grab;user-select:none">
+      <span style="font-weight:600;font-size:14px">💰 가격파수꾼</span>
       <button data-pg="close" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;line-height:1">✕</button>
     </div>
     <div style="padding:14px">
@@ -70,6 +73,41 @@ function applyStyles(panel: HTMLElement): void {
     fontSize: '14px',
     color: '#333',
     overflow: 'hidden',
+  });
+}
+
+function makeDraggable(panel: HTMLElement, handle: HTMLElement): void {
+  handle.addEventListener('mousedown', (e: MouseEvent) => {
+    // 닫기 버튼 클릭이면 드래그 무시
+    if ((e.target as HTMLElement).closest('[data-pg="close"]')) return;
+
+    const rect = panel.getBoundingClientRect();
+    // bottom/right → top/left 좌표로 전환
+    panel.style.bottom = 'auto';
+    panel.style.right = 'auto';
+    panel.style.left = `${rect.left}px`;
+    panel.style.top = `${rect.top}px`;
+
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    handle.style.cursor = 'grabbing';
+
+    const onMove = (ev: MouseEvent): void => {
+      const newLeft = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, ev.clientX - startX));
+      const newTop = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ev.clientY - startY));
+      panel.style.left = `${newLeft}px`;
+      panel.style.top = `${newTop}px`;
+    };
+
+    const onUp = (): void => {
+      handle.style.cursor = 'grab';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
   });
 }
 

@@ -30,7 +30,8 @@
 | 기능 | 설명 |
 |------|------|
 | 자동 상품 감지 | 쇼핑몰 상품 페이지 방문 시 자동으로 상품 정보(이름, 가격, 이미지) 감지 |
-| 추적 등록 패널 | 화면 우하단 플로팅 패널에서 목표가 설정 후 추적 시작 |
+| 아이콘 배지 | 추적 가능 페이지에서 확장프로그램 아이콘에 초록색 `ON` 배지 표시, 이탈 시 자동 제거 |
+| 추적 등록 패널 | 화면 우하단 플로팅 패널에서 목표가 설정 후 "추적 시작" 버튼 클릭으로 등록 |
 | 일일 가격 체크 | 백그라운드 서비스 워커가 24시간마다 자동으로 가격 확인 |
 | Chrome 알림 | 목표가 달성 또는 가격 하락 시 시스템 알림 발송 |
 | 팝업 관리 | 확장프로그램 팝업에서 추적 목록 조회, 삭제, 수동 가격 확인 |
@@ -433,7 +434,7 @@ Content Script / Popup → Background 방향의 단방향 요청-응답 패턴.
 | `PRODUCT_REMOVE` | Popup | 상품 삭제 | `string` (id) |
 | `PRODUCTS_GET` | Popup | 전체 목록 조회 | 없음 |
 | `PRICE_CHECK_NOW` | Popup | 즉시 가격 확인 | 없음 |
-| `PRODUCT_DETECTED` | Content Script | (예약) 상품 감지 알림 | — |
+| `PRODUCT_DETECTED` | Content Script | 상품 감지 결과 알림 → 아이콘 배지 표시/제거 | `ProductDetectedPayload` (`detected: boolean, name?: string`) |
 
 **응답 형식:**
 
