@@ -8,6 +8,9 @@ const chromeMock = {
       set: vi.fn(),
       remove: vi.fn(),
     },
+    onChanged: {
+      addListener: vi.fn(),
+    },
   },
   alarms: {
     create: vi.fn(),
@@ -29,6 +32,7 @@ const chromeMock = {
     onStartup: { addListener: vi.fn() },
     onMessage: { addListener: vi.fn() },
     sendMessage: vi.fn(),
+    getURL: vi.fn((path: string) => `chrome-extension://test-extension-id/${path}`),
   },
 };
 

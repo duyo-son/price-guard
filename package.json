@@ -12,15 +12,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write \"src/**/*.{ts,html}\" \"tests/**/*.ts\" \"*.{ts,mjs,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,html}\" \"tests/**/*.ts\"",
-    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.node.json"
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.node.json && tsc --noEmit --project tsconfig.e2e.json"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
     "@types/node": "^22.0.0",
+    "puppeteer": "^22.0.0",
     "@vitest/coverage-v8": "^2.0.0",
     "eslint": "^9.0.0",
     "jsdom": "^25.0.0",

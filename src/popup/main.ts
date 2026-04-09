@@ -171,7 +171,10 @@ document.getElementById('btn-check-now')?.addEventListener('click', () => {
       setTimeout(() => setStatus('\u00a0'), 2500);
     });
 });
-
+// ── 테스트 모드 ─────────────────────────────────────────────────────
+document.getElementById('btn-devtools')?.addEventListener('click', () => {
+  window.open(chrome.runtime.getURL('devtools/index.html'));
+});
 // ── 설정 패널 ─────────────────────────────────────────────────────────────────
 
 function isFabPosition(val: unknown): val is FabPosition {

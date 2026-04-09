@@ -1,13 +1,12 @@
 {
   "compilerOptions": {
-    "composite": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "chrome"],
     "skipLibCheck": true
   },
-  "include": ["vite*.config.ts", "vitest*.config.ts", "scripts/**/*"]
+  "include": ["tests/e2e/**/*"]
 }

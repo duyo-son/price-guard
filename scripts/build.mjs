@@ -17,6 +17,9 @@ run('vite build --config vite.background.config.ts');
 console.log('[price-guard] Building content script...');
 run('vite build --config vite.content.config.ts');
 
+console.log('[price-guard] Building devtools page...');
+run('vite build --config vite.devtools.config.ts');
+
 console.log('[price-guard] Copying manifest...');
 copyFileSync('manifest.json', join('dist', 'manifest.json'));
 

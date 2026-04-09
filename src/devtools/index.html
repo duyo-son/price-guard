@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>가격파수꾼 — 테스트 모드</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+        font-size: 14px;
+        color: #1a1a2e;
+        background: #f0f2f8;
+        min-height: 100vh;
+      }
+      .page-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 4px 20px rgba(102,126,234,.35);
+      }
+      .page-header h1 { font-size: 20px; font-weight: 800; letter-spacing: -.03em; }
+      .page-header .badge {
+        background: rgba(255,255,255,.2);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 20px;
+        letter-spacing: .06em;
+      }
+      .main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+      .section {
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,.07);
+      }
+      .section-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #667eea;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .section-title .count-badge {
+        background: #667eea;
+        color: #fff;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-weight: 700;
+        letter-spacing: 0;
+        min-width: 22px;
+        text-align: center;
+      }
+      .presets-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      @media (max-width: 500px) { .presets-grid { grid-template-columns: 1fr 1fr; } }
+      .preset-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 14px 10px;
+        border: 1.5px solid #e8ecf4;
+        border-radius: 12px;
+        background: #f8f9fc;
+        cursor: pointer;
+        font-family: inherit;
+        transition: border-color .15s, background .15s, box-shadow .15s;
+      }
+      .preset-btn:hover {
+        border-color: #667eea;
+        background: #f0f3ff;
+        box-shadow: 0 4px 16px rgba(102,126,234,.18);
+      }
+      .preset-btn .emoji { font-size: 24px; line-height: 1; }
+      .preset-btn .label { font-size: 12px; font-weight: 700; color: #333; }
+      .preset-btn .desc { font-size: 11px; color: #999; text-align: center; }
+      #products-list { display: flex; flex-direction: column; gap: 10px; }
+      .tm-product-card {
+        border: 1.5px solid #e8ecf4;
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: #fafbff;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .tm-card-info { flex: 1; min-width: 0; }
+      .tm-card-name { font-weight: 700; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .tm-card-meta { font-size: 12px; color: #888; display: flex; gap: 12px; flex-wrap: wrap; }
+      .tm-card-meta span { white-space: nowrap; }
+      .tm-status {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 20px;
+        margin-left: 8px;
+      }
+      .tm-status.target { background: #e6fff4; color: #22863a; }
+      .tm-status.lowest { background: #fff8e7; color: #b7791f; }
+      .tm-card-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+      .btn-delete {
+        padding: 5px 12px;
+        background: #fff5f5;
+        color: #e53e3e;
+        border: 1px solid #fed7d7;
+        border-radius: 8px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+      }
+      .btn-add-history {
+        padding: 5px 12px;
+        background: #f0f3ff;
+        color: #667eea;
+        border: 1px solid #c3cff0;
+        border-radius: 8px;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+      }
+      .empty-hint {
+        text-align: center;
+        color: #bbb;
+        padding: 24px 0;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 500px) { .form-grid { grid-template-columns: 1fr; } }
+      .form-group { display: flex; flex-direction: column; gap: 5px; }
+      .form-group.full { grid-column: 1 / -1; }
+      .form-label { font-size: 12px; font-weight: 600; color: #555; }
+      .form-input {
+        padding: 8px 11px;
+        border: 1.5px solid #e8e8f0;
+        border-radius: 9px;
+        font-size: 13px;
+        color: #1a1a2e;
+        background: #fafafa;
+        font-family: inherit;
+        transition: border-color .15s, box-shadow .15s;
+        outline: none;
+      }
+      .form-input:focus { border-color: #764ba2; box-shadow: 0 0 0 3px rgba(118,75,162,.12); }
+      .form-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+      .form-row label { font-size: 13px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+      .btn-primary {
+        width: 100%;
+        margin-top: 14px;
+        padding: 12px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        letter-spacing: -.01em;
+        transition: opacity .15s;
+      }
+      .btn-primary:hover { opacity: .9; }
+      .pos-grid-tm {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        max-width: 320px;
+      }
+      .pos-tile-tm {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 12px 10px;
+        border: 1.5px solid #e8ecf4;
+        border-radius: 11px;
+        background: #f8f9fc;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        color: #555;
+        font-family: inherit;
+        transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+      }
+      .pos-tile-tm:hover { border-color: #667eea; background: #f0f3ff; color: #667eea; }
+      .pos-tile-tm.active {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 3px 12px rgba(102,126,234,.35);
+      }
+      .pos-corner-tm { font-size: 18px; line-height: 1; }
+      .danger-section { border: 1.5px solid #fed7d7; background: #fff5f5; }
+      .btn-danger {
+        padding: 10px 20px;
+        background: #fff;
+        color: #e53e3e;
+        border: 1.5px solid #fed7d7;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background .15s;
+      }
+      .btn-danger:hover { background: #fff5f5; }
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(80px);
+        background: #1a1a2e;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 30px;
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: 0 4px 20px rgba(0,0,0,.25);
+        z-index: 9999;
+        transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+      .history-form {
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: #f0f3ff;
+        border-radius: 10px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .history-form input {
+        padding: 6px 10px;
+        border: 1.5px solid #c3cff0;
+        border-radius: 8px;
+        font-size: 12px;
+        font-family: inherit;
+        width: 110px;
+        outline: none;
+      }
+      .history-form input:focus { border-color: #667eea; }
+      .btn-history-submit {
+        padding: 6px 14px;
+        background: #667eea;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <span style="font-size:24px">🛠</span>
+      <h1>테스트 모드</h1>
+      <span class="badge">DEV ONLY</span>
+    </div>
+
+    <main class="main">
+      <!-- 시나리오 프리셋 -->
+      <section class="section">
+        <div class="section-title">시나리오 프리셋</div>
+        <div class="presets-grid">
+          <button class="preset-btn" data-preset="empty">
+            <span class="emoji">🆕</span>
+            <span class="label">초기 상태</span>
+            <span class="desc">추적 상품 없음</span>
+          </button>
+          <button class="preset-btn" data-preset="normal">
+            <span class="emoji">📦</span>
+            <span class="label">정상 추적 중</span>
+            <span class="desc">일반 가격 이력</span>
+          </button>
+          <button class="preset-btn" data-preset="dropping">
+            <span class="emoji">📉</span>
+            <span class="label">가격 하락 중</span>
+            <span class="desc">지속 하락 추세</span>
+          </button>
+          <button class="preset-btn" data-preset="target-met">
+            <span class="emoji">🎯</span>
+            <span class="label">목표가 도달</span>
+            <span class="desc">현재가 ≤ 목표가</span>
+          </button>
+          <button class="preset-btn" data-preset="lowest-ever">
+            <span class="emoji">🏆</span>
+            <span class="label">역대 최저가</span>
+            <span class="desc">현재가 = 역대 최저</span>
+          </button>
+          <button class="preset-btn" data-preset="multi">
+            <span class="emoji">🛒</span>
+            <span class="label">다수 상품</span>
+            <span class="desc">5개 상품, 다양한 상태</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 현재 데이터 -->
+      <section class="section">
+        <div class="section-title">
+          현재 데이터
+          <span class="count-badge" id="product-count">0</span>
+        </div>
+        <div id="products-list">
+          <div class="empty-hint">추적 상품이 없습니다.<br>위 프리셋을 선택하거나 직접 추가하세요.</div>
+        </div>
+      </section>
+
+      <!-- 상품 직접 추가 -->
+      <section class="section">
+        <div class="section-title">상품 직접 추가</div>
+        <form id="add-form" novalidate>
+          <div class="form-grid">
+            <div class="form-group full">
+              <label class="form-label" for="input-name">상품명 *</label>
+              <input id="input-name" class="form-input" type="text" placeholder="예: Sony WH-1000XM5" required />
+            </div>
+            <div class="form-group full">
+              <label class="form-label" for="input-url">상품 URL *</label>
+              <input id="input-url" class="form-input" type="text" placeholder="https://www.coupang.com/vp/products/..." required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="input-price">현재가 (원) *</label>
+              <input id="input-price" class="form-input" type="number" min="1" placeholder="예: 298000" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="input-target">목표가 (원, 선택)</label>
+              <input id="input-target" class="form-input" type="number" min="1" placeholder="미입력 시 없음" />
+            </div>
+            <div class="form-group full">
+              <label class="form-label" for="input-image">이미지 URL (선택)</label>
+              <input id="input-image" class="form-input" type="text" placeholder="https://..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="input-history-days">가격 이력 자동 생성 (일 수)</label>
+              <input id="input-history-days" class="form-input" type="number" min="0" max="90" value="0" placeholder="0 = 이력 없음" />
+            </div>
+            <div class="form-group" style="justify-content:flex-end">
+              <div class="form-row">
+                <label>
+                  <input id="input-notify" type="checkbox" checked style="accent-color:#764ba2" />
+                  가격 하락 시 알림
+                </label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" id="btn-add-product">➕ 상품 추가</button>
+        </form>
+      </section>
+
+      <!-- FAB 위치 -->
+      <section class="section">
+        <div class="section-title">FAB 아이콘 위치</div>
+        <div class="pos-grid-tm">
+          <button class="pos-tile-tm" data-pos="top-left"><span class="pos-corner-tm">↖</span>왼쪽 위</button>
+          <button class="pos-tile-tm" data-pos="top-right"><span class="pos-corner-tm">↗</span>오른쪽 위</button>
+          <button class="pos-tile-tm" data-pos="bottom-left"><span class="pos-corner-tm">↙</span>왼쪽 아래</button>
+          <button class="pos-tile-tm" data-pos="bottom-right"><span class="pos-corner-tm">↘</span>오른쪽 아래</button>
+        </div>
+        <p style="font-size:11px;color:#aaa;margin-top:10px">변경 시 이미 열린 상품 페이지에 즉시 반영됩니다.</p>
+      </section>
+
+      <!-- 위험 구역 -->
+      <section class="section danger-section">
+        <div class="section-title" style="color:#e53e3e">위험 구역</div>
+        <button class="btn-danger" id="btn-clear-all">⚠️ 전체 데이터 삭제</button>
+      </section>
+    </main>
+
+    <div id="toast"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
