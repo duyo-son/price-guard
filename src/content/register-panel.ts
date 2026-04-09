@@ -1,5 +1,6 @@
 import type { DetectedProduct } from './detector.js';
-import type { ProductRegisterPayload } from '../shared/types.js';
+import type { FabPosition, ProductRegisterPayload } from '../shared/types.js';
+import { DEFAULT_FAB_POSITION, STORAGE_KEYS } from '../shared/constants.js';
 
 const PANEL_ID = 'price-guard-panel';
 const FAB_ID = 'price-guard-fab';
@@ -7,6 +8,9 @@ const STYLE_ID = 'price-guard-styles';
 
 const GRADIENT_DEFAULT = 'linear-gradient(135deg,#667eea 0%,#764ba2 100%)';
 const GRADIENT_TRACKING = 'linear-gradient(135deg,#11998e 0%,#38ef7d 100%)';
+
+// 현재 적용 중인 위치 — loadFabPosition·storage.onChanged 양쪽에서 동기화
+let activePosition: FabPosition = DEFAULT_FAB_POSITION;
 
 // Material Design path data (Apache 2.0) — price-tag & checkmark
 const PATH_PRICE_TAG =
@@ -21,6 +25,35 @@ function makeSvg(path: string): string {
     `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"` +
     ` fill="white" style="pointer-events:none;flex-shrink:0"><path d="${path}"/></svg>`
   );
+}
+
+// ── Position helpers ──────────────────────────────────────────────────────────
+
+function fabPositionCSS(pos: FabPosition): string {
+  const vert = pos.startsWith('top') ? 'top:28px;bottom:auto;' : 'bottom:28px;top:auto;';
+  const horiz = pos.endsWith('left') ? 'left:28px;right:auto;' : 'right:28px;left:auto;';
+  return vert + horiz;
+}
+
+function panelPositionCSS(pos: FabPosition): string {
+  const vert = pos.startsWith('top') ? 'top:102px;bottom:auto;' : 'bottom:102px;top:auto;';
+  const horiz = pos.endsWith('left') ? 'left:28px;right:auto;' : 'right:28px;left:auto;';
+  return vert + horiz;
+}
+
+async function loadFabPosition(): Promise<FabPosition> {
+  try {
+    const res = await chrome.storage.local.get(STORAGE_KEYS.FAB_POSITION);
+    const val: unknown = res[STORAGE_KEYS.FAB_POSITION];
+    if (val === 'bottom-right' || val === 'bottom-left' || val === 'top-right' || val === 'top-left') {
+      activePosition = val;
+      return val;
+    }
+  } catch {
+    // 무시
+  }
+  activePosition = DEFAULT_FAB_POSITION;
+  return DEFAULT_FAB_POSITION;
 }
 
 // ── Style injection ─────────────────────────────────────────────────────────
@@ -40,10 +73,11 @@ function injectStyles(): void {
     `65%{transform:scale(1.12) rotate(3deg)}100%{opacity:1;transform:scale(1) rotate(0)}}` +
     `@keyframes pg-slide-up{from{opacity:0;transform:translateY(20px) scale(.95)}` +
     `to{opacity:1;transform:translateY(0) scale(1)}}` +
+    `@keyframes pg-slide-down{from{opacity:0;transform:translateY(-20px) scale(.95)}` +
+    `to{opacity:1;transform:translateY(0) scale(1)}}` +
     `#${FAB_ID}{transition:transform .18s cubic-bezier(.34,1.56,.64,1)!important}` +
     `#${FAB_ID}:hover{transform:scale(1.1)!important}` +
     `#${FAB_ID}:active{transform:scale(.92)!important}` +
-    `#${PANEL_ID}{animation:pg-slide-up .3s cubic-bezier(.22,1,.36,1) both}` +
     `.pg-reg-btn{transition:box-shadow .15s,transform .15s!important}` +
     `.pg-reg-btn:hover{box-shadow:0 8px 28px rgba(102,126,234,.55)!important;transform:translateY(-1px)}` +
     `.pg-close-btn:hover{background:rgba(255,255,255,.3)!important}` +
@@ -53,7 +87,7 @@ function injectStyles(): void {
 
 // ── FAB ────────────────────────────────────────────────────────────────────
 
-function buildFab(isTracking: boolean): HTMLButtonElement {
+function buildFab(isTracking: boolean, position: FabPosition): HTMLButtonElement {
   const fab = document.createElement('button');
   fab.id = FAB_ID;
 
@@ -63,7 +97,7 @@ function buildFab(isTracking: boolean): HTMLButtonElement {
     : 'pg-pulse 2.2s ease-in-out infinite';
 
   fab.style.cssText =
-    `position:fixed;bottom:28px;right:28px;width:62px;height:62px;` +
+    `position:fixed;${fabPositionCSS(position)}width:62px;height:62px;` +
     `border-radius:50%;background:${gradient};border:none;cursor:pointer;` +
     `display:flex;align-items:center;justify-content:center;` +
     `z-index:2147483647;outline:none;padding:0;overflow:visible;` +
@@ -94,16 +128,18 @@ function buildFab(isTracking: boolean): HTMLButtonElement {
 
 // ── Dialog panel ────────────────────────────────────────────────────────────
 
-function buildPanel(product: DetectedProduct, isTracking: boolean, lowestPrice?: number, registeredAt?: number): HTMLElement {
+function buildPanel(product: DetectedProduct, isTracking: boolean, lowestPrice?: number, registeredAt?: number, position: FabPosition = DEFAULT_FAB_POSITION): HTMLElement {
   const panel = document.createElement('div');
   panel.id = PANEL_ID;
+  const slideAnim = position.startsWith('top') ? 'pg-slide-down' : 'pg-slide-up';
   panel.style.cssText =
-    `position:fixed;bottom:102px;right:28px;width:312px;` +
+    `position:fixed;${panelPositionCSS(position)}width:312px;` +
     `background:#fff;border-radius:20px;` +
     `box-shadow:0 12px 48px rgba(0,0,0,.16),0 2px 8px rgba(0,0,0,.06);` +
     `z-index:2147483646;overflow:hidden;` +
     `font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;` +
-    `font-size:14px;color:#1a1a2e;border:1px solid rgba(0,0,0,.06);`;
+    `font-size:14px;color:#1a1a2e;border:1px solid rgba(0,0,0,.06);` +
+    `animation:${slideAnim} .3s cubic-bezier(.22,1,.36,1) both;`;
 
   panel.innerHTML = isTracking ? renderTrackingHTML(product, lowestPrice, registeredAt) : renderRegisterHTML(product);
 
@@ -220,15 +256,17 @@ function renderRegisterHTML(product: DetectedProduct): string {
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
-export function showRegisterPanel(product: DetectedProduct): void {
+export async function showRegisterPanel(product: DetectedProduct): Promise<void> {
   if (document.getElementById(FAB_ID)) return;
   injectStyles();
-  const fab = buildFab(false);
+  const initialPos = await loadFabPosition();
+  const fab = buildFab(false, initialPos);
   document.body.appendChild(fab);
 
   fab.addEventListener('click', () => {
     if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
-    const panel = buildPanel(product, false);
+    // activePosition: 클릭 시점의 최신 위치를 사용 (클로저 아님)
+    const panel = buildPanel(product, false, undefined, undefined, activePosition);
     panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
     panel.querySelector<HTMLButtonElement>('.pg-reg-btn')?.addEventListener('click', () => {
       void handleRegister(panel, product);
@@ -237,15 +275,17 @@ export function showRegisterPanel(product: DetectedProduct): void {
   });
 }
 
-export function showTrackingFab(product: DetectedProduct, lowestPrice?: number, registeredAt?: number): void {
+export async function showTrackingFab(product: DetectedProduct, lowestPrice?: number, registeredAt?: number): Promise<void> {
   if (document.getElementById(FAB_ID)) return;
   injectStyles();
-  const fab = buildFab(true);
+  const initialPos = await loadFabPosition();
+  const fab = buildFab(true, initialPos);
   document.body.appendChild(fab);
 
   fab.addEventListener('click', () => {
     if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
-    const panel = buildPanel(product, true, lowestPrice, registeredAt);
+    // activePosition: 클릭 시점의 최신 위치를 사용 (클로저 아님)
+    const panel = buildPanel(product, true, lowestPrice, registeredAt, activePosition);
     panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
     document.body.appendChild(panel);
   });
@@ -317,9 +357,37 @@ async function handleRegister(panel: HTMLElement, product: DetectedProduct): Pro
         `<p style="text-align:center;padding:24px 14px;font-size:15px;font-weight:600">` +
         `✅ 추적이 시작되었습니다!</p>`;
     }
-    setTimeout(hideRegisterPanel, 1800);
+    // 패널 닫고 FAB을 추적중 상태로 전환
+    setTimeout(() => transitionToTrackingFab(product), 1800);
   } catch (err) {
     console.error('[PriceGuard] Failed to register product:', err);
+  }
+}
+
+/** 등록 완료 후 FAB을 미등록(보라) → 추적중(초록) 으로 부드럽게 전환 */
+function transitionToTrackingFab(product: DetectedProduct): void {
+  hideDialog();
+
+  const oldFab = document.getElementById(FAB_ID);
+  if (oldFab instanceof HTMLElement) {
+    // 축소 페이드 아웃
+    oldFab.style.transition = 'transform .25s ease, opacity .25s ease';
+    oldFab.style.transform = 'scale(0)';
+    oldFab.style.opacity = '0';
+    setTimeout(() => {
+      oldFab.remove();
+      // 추적중 FAB 팝인
+      const newFab = buildFab(true, activePosition);
+      document.body.appendChild(newFab);
+
+      newFab.addEventListener('click', () => {
+        if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
+        // 등록 시점 현재가를 최저가로 표시 (이후 가격 확인 전까지 최선)
+        const panel = buildPanel(product, true, product.price, Date.now(), activePosition);
+        panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
+        document.body.appendChild(panel);
+      });
+    }, 260);
   }
 }
 
@@ -334,3 +402,33 @@ function escapeHtml(str: string): string {
 function escapeAttr(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
+
+// ── Real-time position sync ──────────────────────────────────────────────────
+
+function isFabPositionVal(val: unknown): val is FabPosition {
+  return val === 'bottom-right' || val === 'bottom-left' || val === 'top-right' || val === 'top-left';
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !(STORAGE_KEYS.FAB_POSITION in changes)) return;
+  const rawNew: unknown = changes[STORAGE_KEYS.FAB_POSITION]?.newValue;
+  const pos: FabPosition = isFabPositionVal(rawNew) ? rawNew : DEFAULT_FAB_POSITION;
+  // 모듈 변수 동기화 — 이후 패널 생성 시 항상 최신 위치 사용
+  activePosition = pos;
+
+  const fab = document.getElementById(FAB_ID);
+  if (fab instanceof HTMLElement) {
+    fab.style.top = pos.startsWith('top') ? '28px' : 'auto';
+    fab.style.bottom = pos.startsWith('top') ? 'auto' : '28px';
+    fab.style.left = pos.endsWith('left') ? '28px' : 'auto';
+    fab.style.right = pos.endsWith('left') ? 'auto' : '28px';
+  }
+
+  const panel = document.getElementById(PANEL_ID);
+  if (panel instanceof HTMLElement) {
+    panel.style.top = pos.startsWith('top') ? '102px' : 'auto';
+    panel.style.bottom = pos.startsWith('top') ? 'auto' : '102px';
+    panel.style.left = pos.endsWith('left') ? '28px' : 'auto';
+    panel.style.right = pos.endsWith('left') ? 'auto' : '28px';
+  }
+});

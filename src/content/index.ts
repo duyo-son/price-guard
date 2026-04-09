@@ -69,9 +69,9 @@ async function attemptDetect(targetHref: string, retryCount: number): Promise<vo
       console.log(LOG, '추출 성공:', product.name, product.price);
       const result = await sendDetectedMessage(true, product.name, product.url);
       if (!result.isRegistered) {
-        showRegisterPanel(product);
+        void showRegisterPanel(product);
       } else {
-        showTrackingFab(product, result.lowestPrice, result.registeredAt);
+        void showTrackingFab(product, result.lowestPrice, result.registeredAt);
       }
     } else if (retryCount < MAX_RETRIES) {
       console.log(LOG, `추출 실패 (재시도 ${RETRY_DELAY_MS}ms 후)...`);

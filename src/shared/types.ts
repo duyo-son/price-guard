@@ -17,6 +17,8 @@ export interface PriceRecord {
   timestamp: number;
 }
 
+export type FabPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
 // 메시지 타입
 export type MessageType =
   | 'PRODUCT_REGISTER'

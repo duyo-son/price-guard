@@ -1,4 +1,5 @@
-import type { TrackedProduct, Message, MessageResponse, PriceRecord } from '../shared/types.js';
+import type { TrackedProduct, FabPosition, Message, MessageResponse, PriceRecord } from '../shared/types.js';
+import { STORAGE_KEYS, DEFAULT_FAB_POSITION } from '../shared/constants.js';
 
 async function sendMsg<T>(message: Message): Promise<MessageResponse<T>> {
   return chrome.runtime.sendMessage<Message, MessageResponse<T>>(message);
@@ -171,7 +172,47 @@ document.getElementById('btn-check-now')?.addEventListener('click', () => {
     });
 });
 
+// ── 설정 패널 ─────────────────────────────────────────────────────────────────
+
+function isFabPosition(val: unknown): val is FabPosition {
+  return val === 'bottom-right' || val === 'bottom-left' || val === 'top-right' || val === 'top-left';
+}
+
+function markActivePosition(pos: FabPosition): void {
+  const panel = document.getElementById('settings-panel');
+  if (!panel) return;
+  panel.querySelectorAll<HTMLButtonElement>('[data-pos]').forEach((tile) => {
+    tile.classList.toggle('active', tile.dataset['pos'] === pos);
+  });
+}
+
+async function initSettings(): Promise<void> {
+  const btnSettings = document.getElementById('btn-settings') as HTMLButtonElement | null;
+  const settingsPanel = document.getElementById('settings-panel');
+  if (!btnSettings || !settingsPanel) return;
+
+  const res = await chrome.storage.local.get(STORAGE_KEYS.FAB_POSITION);
+  const raw: unknown = res[STORAGE_KEYS.FAB_POSITION];
+  markActivePosition(isFabPosition(raw) ? raw : DEFAULT_FAB_POSITION);
+
+  btnSettings.addEventListener('click', () => {
+    const isOpen = settingsPanel.classList.toggle('open');
+    btnSettings.classList.toggle('active', isOpen);
+  });
+
+  settingsPanel.querySelectorAll<HTMLButtonElement>('[data-pos]').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      const pos = tile.dataset['pos'];
+      if (!isFabPosition(pos)) return;
+      markActivePosition(pos);
+      void chrome.storage.local.set({ [STORAGE_KEYS.FAB_POSITION]: pos });
+    });
+  });
+}
+
 // 팝업 시작 시 스토리지 진단 → PRODUCTS_GET 시도
 diagStorage()
   .then(() => loadProducts())
   .catch((err: unknown) => console.error('[PriceGuard] Popup init error:', err));
+
+void initSettings().catch((err: unknown) => console.error('[PriceGuard] Settings init error:', err));

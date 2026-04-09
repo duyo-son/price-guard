@@ -1,6 +1,9 @@
 export const STORAGE_KEYS = {
   PRODUCTS: 'price_guard_products',
+  FAB_POSITION: 'price_guard_fab_position',
 } as const;
+
+export const DEFAULT_FAB_POSITION = 'bottom-left' as const;
 
 export const ALARM_NAMES = {
   DAILY_PRICE_CHECK: 'price_guard_daily_check',
