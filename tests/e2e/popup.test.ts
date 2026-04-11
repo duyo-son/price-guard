@@ -82,6 +82,10 @@ describe('팝업 — 설정 패널', () => {
 
   it('위치 타일 클릭 시 active 클래스가 적용된다', async () => {
     await page.click('#btn-settings');
+    // CSS 트랜지션(max-height 0→160px, 220ms)이 충분히 완료될 때까지 대기
+    await page.waitForFunction(
+      () => (document.getElementById('settings-panel')?.getBoundingClientRect().height ?? 0) > 100,
+    );
     await page.click('[data-pos="top-right"]');
     const isActive = await page.$eval(
       '[data-pos="top-right"]',

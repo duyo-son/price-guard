@@ -33,8 +33,8 @@ export async function launchWithExtension(): Promise<ExtensionContext> {
     ],
   });
 
-  // Service Worker가 등록될 때까지 최대 10초 대기
-  for (let i = 0; i < 20; i++) {
+  // Service Worker가 등록될 때까지 최대 20초 대기
+  for (let i = 0; i < 40; i++) {
     const targets = browser.targets();
     const sw = targets.find(
       (t) => t.type() === TargetType.SERVICE_WORKER && t.url().startsWith('chrome-extension://'),
@@ -52,6 +52,7 @@ export async function launchWithExtension(): Promise<ExtensionContext> {
   throw new Error('[E2E] Extension service worker not found within timeout.');
 }
 
-export async function closeBrowser(browser: Browser): Promise<void> {
+export async function closeBrowser(browser: Browser | undefined): Promise<void> {
+  if (!browser) return;
   await browser.close();
 }
