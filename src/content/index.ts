@@ -4,6 +4,7 @@ import { createCoupangDetector } from './sites/coupang.js';
 import { createNaverSmartStoreDetector } from './sites/naver-smartstore.js';
 import { showRegisterPanel, showTrackingFab, hideRegisterPanel } from './register-panel.js';
 import type { ProductDetectedPayload } from '../shared/types.js';
+import { STORAGE_KEYS } from '../shared/constants.js';
 
 const LOG = '[PriceGuard]';
 const MAX_RETRIES = 4;
@@ -45,6 +46,7 @@ interface DetectedResult {
   isRegistered: boolean;
   lowestPrice?: number;
   registeredAt?: number;
+  lastCheckedAt?: number | null;
 }
 
 async function sendDetectedMessage(
@@ -87,10 +89,15 @@ async function attemptDetect(targetHref: string, retryCount: number): Promise<vo
     if (product) {
       console.log(LOG, '추출 성공:', product.name, product.price);
       const result = await sendDetectedMessage(true, product.name, product.url);
-      if (!result.isRegistered) {
-        void showRegisterPanel(product);
-      } else {
-        void showTrackingFab(product, result.lowestPrice, result.registeredAt);
+      // FAB 감지 아이콘 표시 여부 확인
+      const fabRes = await chrome.storage.local.get(STORAGE_KEYS.FAB_ENABLED);
+      const fabEnabled = fabRes[STORAGE_KEYS.FAB_ENABLED] !== false;
+      if (fabEnabled) {
+        if (!result.isRegistered) {
+          void showRegisterPanel(product);
+        } else {
+          void showTrackingFab(product, result.lowestPrice, result.registeredAt, result.lastCheckedAt ?? null);
+        }
       }
     } else if (retryCount < MAX_RETRIES) {
       console.log(LOG, `추출 실패 (재시도 ${RETRY_DELAY_MS}ms 후)...`);
@@ -127,3 +134,16 @@ const observer = new MutationObserver(() => {
   }
 });
 observer.observe(document.documentElement, { subtree: true, childList: true });
+
+// FAB 감지 아이콘 설정 변경 시 즉시 반영
+chrome.storage.onChanged.addListener((changes) => {
+  if (STORAGE_KEYS.FAB_ENABLED in changes) {
+    const enabled = changes[STORAGE_KEYS.FAB_ENABLED]?.newValue !== false;
+    if (!enabled) {
+      hideRegisterPanel();
+    } else {
+      // 표시로 전환 시 현재 페이지를 다시 감지·표시
+      tryDetectAndShow();
+    }
+  }
+});

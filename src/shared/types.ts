@@ -19,6 +19,8 @@ export interface PriceRecord {
 
 export type FabPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 
+export type CheckInterval = '24h' | '6h' | '3h' | 'paused';
+
 // 메시지 타입
 export type MessageType =
   | 'PRODUCT_REGISTER'

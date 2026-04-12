@@ -1,7 +1,7 @@
 import { createStorageService } from '../shared/storage.js';
 import type { Message, ProductRegisterPayload, TrackedProduct, ProductDetectedPayload } from '../shared/types.js';
-import { ALARM_NAMES, REQUEST_INTERVAL_MS, MIN_MANUAL_CHECK_INTERVAL_MS } from '../shared/constants.js';
-import { registerDailyAlarm, onAlarmFired } from './alarm-manager.js';
+import { ALARM_NAMES, REQUEST_INTERVAL_MS, MIN_MANUAL_CHECK_INTERVAL_MS, STORAGE_KEYS, CHECK_INTERVAL_MINUTES, DEFAULT_CHECK_INTERVAL, isCheckInterval } from '../shared/constants.js';
+import { applyAlarm, onAlarmFired } from './alarm-manager.js';
 import { notifyTargetPriceMet, notifyPriceDropped } from './notifier.js';
 import { fetchAliExpressPrice } from './sites/aliexpress.js';
 import { fetchCoupangPrice } from './sites/coupang.js';
@@ -10,17 +10,35 @@ import { RateLimitError } from './errors.js';
 
 const storage = createStorageService();
 
-// 설치/시작 시 일일 알람 등록
+// 설치/시작 시 저장된 확인 주기로 알람 초기화
+async function initAlarm(): Promise<void> {
+  const res = await chrome.storage.local.get(STORAGE_KEYS.CHECK_INTERVAL);
+  const raw: unknown = res[STORAGE_KEYS.CHECK_INTERVAL];
+  const interval = isCheckInterval(raw) ? raw : DEFAULT_CHECK_INTERVAL;
+  await applyAlarm(CHECK_INTERVAL_MINUTES[interval]);
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  registerDailyAlarm().catch((err: unknown) =>
-    console.error('[PriceGuard] Failed to register alarm:', err),
+  initAlarm().catch((err: unknown) =>
+    console.error('[PriceGuard] Failed to init alarm:', err),
   );
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  registerDailyAlarm().catch((err: unknown) =>
-    console.error('[PriceGuard] Failed to register alarm on startup:', err),
+  initAlarm().catch((err: unknown) =>
+    console.error('[PriceGuard] Failed to init alarm on startup:', err),
   );
+});
+
+// 설정 변경 시 알람 재설정
+chrome.storage.onChanged.addListener((changes) => {
+  if (STORAGE_KEYS.CHECK_INTERVAL in changes) {
+    const raw: unknown = changes[STORAGE_KEYS.CHECK_INTERVAL]?.newValue;
+    const interval = isCheckInterval(raw) ? raw : DEFAULT_CHECK_INTERVAL;
+    applyAlarm(CHECK_INTERVAL_MINUTES[interval]).catch((err: unknown) =>
+      console.error('[PriceGuard] Failed to apply alarm:', err),
+    );
+  }
 });
 
 // 알람 이벤트 → 가격 체크 (일일 알람: 전체 강제 확인)
@@ -49,6 +67,7 @@ async function handleMessage(
       let isRegistered = false;
       let lowestPrice: number | undefined;
       let registeredAt: number | undefined;
+      let lastCheckedAt: number | null | undefined;
       if (detected && url !== undefined) {
         const products = await storage.getProducts();
         const matched = products.find(p => p.url === url);
@@ -57,6 +76,7 @@ async function handleMessage(
           const allPrices = [matched.currentPrice, ...matched.priceHistory.map(r => r.price)];
           lowestPrice = Math.min(...allPrices);
           registeredAt = matched.registeredAt;
+          lastCheckedAt = matched.lastCheckedAt;
         }
       }
 
@@ -79,25 +99,28 @@ async function handleMessage(
       return {
         success: true,
         data: isRegistered
-          ? { isRegistered, lowestPrice, registeredAt }
+          ? { isRegistered, lowestPrice, registeredAt, lastCheckedAt }
           : { isRegistered },
       };
     }
     case 'PRODUCT_REGISTER': {
       const payload = message.payload as ProductRegisterPayload;
+      const now = Date.now();
       const product: TrackedProduct = {
         id: crypto.randomUUID(),
         ...payload,
-        registeredAt: Date.now(),
-        lastCheckedAt: null,
-        priceHistory: [{ price: payload.currentPrice, timestamp: Date.now() }],
+        registeredAt: now,
+        lastCheckedAt: now,
+        priceHistory: [{ price: payload.currentPrice, timestamp: now }],
       };
       await storage.saveProduct(product);
+      await updateAlertBadge();
       return { success: true, data: product };
     }
 
     case 'PRODUCT_REMOVE': {
       await storage.removeProduct(message.payload as string);
+      await updateAlertBadge();
       return { success: true };
     }
 
@@ -145,11 +168,17 @@ async function checkAllPrices(forceAll = true): Promise<void> {
 
     try {
       const newPrice = await fetchCurrentPrice(product.url);
-      if (newPrice === null) continue;
+
+      // 가격 fetch 성공 여부와 관계없이 확인 시각은 기록
+      product.lastCheckedAt = now;
+
+      if (newPrice === null) {
+        await storage.updateProduct(product);
+        continue;
+      }
 
       const previousPrice = product.currentPrice;
       product.currentPrice = newPrice;
-      product.lastCheckedAt = now;
       product.priceHistory.push({ price: newPrice, timestamp: now });
 
       await storage.updateProduct(product);
@@ -167,6 +196,7 @@ async function checkAllPrices(forceAll = true): Promise<void> {
       console.error(`[PriceGuard] Failed to check price for ${product.url}:`, err);
     }
   }
+  await updateAlertBadge();
 }
 
 // 쇼핑몰별 가격 조회 라우터
@@ -181,4 +211,14 @@ function fetchCurrentPrice(url: string): Promise<number | null> {
     return fetchAliExpressPrice(url);
   }
   return Promise.resolve(null);
+}
+
+/** 목표가 달성 상품 수를 전역 배지로 표시 */
+async function updateAlertBadge(): Promise<void> {
+  const products = await storage.getProducts();
+  const count = products.filter(p => p.targetPrice !== null && p.currentPrice <= p.targetPrice).length;
+  void chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+  if (count > 0) {
+    void chrome.action.setBadgeBackgroundColor({ color: '#e53e3e' });
+  }
 }

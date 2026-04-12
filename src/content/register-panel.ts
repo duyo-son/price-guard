@@ -128,7 +128,7 @@ function buildFab(isTracking: boolean, position: FabPosition): HTMLButtonElement
 
 // ── Dialog panel ────────────────────────────────────────────────────────────
 
-function buildPanel(product: DetectedProduct, isTracking: boolean, lowestPrice?: number, registeredAt?: number, position: FabPosition = DEFAULT_FAB_POSITION): HTMLElement {
+function buildPanel(product: DetectedProduct, isTracking: boolean, lowestPrice?: number, registeredAt?: number, lastCheckedAt?: number | null, position: FabPosition = DEFAULT_FAB_POSITION): HTMLElement {
   const panel = document.createElement('div');
   panel.id = PANEL_ID;
   const slideAnim = position.startsWith('top') ? 'pg-slide-down' : 'pg-slide-up';
@@ -141,7 +141,7 @@ function buildPanel(product: DetectedProduct, isTracking: boolean, lowestPrice?:
     `font-size:14px;color:#1a1a2e;border:1px solid rgba(0,0,0,.06);` +
     `animation:${slideAnim} .3s cubic-bezier(.22,1,.36,1) both;`;
 
-  panel.innerHTML = isTracking ? renderTrackingHTML(product, lowestPrice, registeredAt) : renderRegisterHTML(product);
+  panel.innerHTML = isTracking ? renderTrackingHTML(product, lowestPrice, registeredAt, lastCheckedAt) : renderRegisterHTML(product);
 
   const header = panel.querySelector<HTMLElement>('[data-pg="header"]');
   if (header) makeDraggable(panel, header);
@@ -202,7 +202,7 @@ function productNameHTML(product: DetectedProduct): string {
   );
 }
 
-function renderTrackingHTML(product: DetectedProduct, lowestPrice?: number, registeredAt?: number): string {
+function renderTrackingHTML(product: DetectedProduct, lowestPrice?: number, registeredAt?: number, lastCheckedAt?: number | null): string {
   const isAllTimeLow = lowestPrice !== undefined && product.price <= lowestPrice;
   const lowestCard = lowestPrice !== undefined
     ? `<div style="background:linear-gradient(135deg,#fff8e7 0%,#fff3cd 100%);border-radius:12px;` +
@@ -217,6 +217,10 @@ function renderTrackingHTML(product: DetectedProduct, lowestPrice?: number, regi
     ? `<p style="font-size:11px;color:#9b9bb5;margin:10px 0 0;text-align:right">` +
       `추적 시작: ${new Date(registeredAt).toLocaleDateString('ko-KR')}</p>`
     : '';
+  const lastCheckedText = lastCheckedAt != null
+    ? `<p style="font-size:11px;color:#9b9bb5;margin:4px 0 0;text-align:right">` +
+      `마지막 확인: ${new Date(lastCheckedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>`
+    : `<p style="font-size:11px;color:#c0c0d0;margin:4px 0 0;text-align:right">마지막 확인: 아직 없음</p>`;
   return (
     headerRow(true) +
     `<div style="padding:16px 16px 20px">` +
@@ -225,6 +229,7 @@ function renderTrackingHTML(product: DetectedProduct, lowestPrice?: number, regi
     priceCard(product, true) +
     lowestCard +
     sinceText +
+    lastCheckedText +
     `</div>`
   );
 }
@@ -266,7 +271,7 @@ export async function showRegisterPanel(product: DetectedProduct): Promise<void>
   fab.addEventListener('click', () => {
     if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
     // activePosition: 클릭 시점의 최신 위치를 사용 (클로저 아님)
-    const panel = buildPanel(product, false, undefined, undefined, activePosition);
+    const panel = buildPanel(product, false, undefined, undefined, undefined, activePosition);
     panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
     panel.querySelector<HTMLButtonElement>('.pg-reg-btn')?.addEventListener('click', () => {
       void handleRegister(panel, product);
@@ -275,7 +280,7 @@ export async function showRegisterPanel(product: DetectedProduct): Promise<void>
   });
 }
 
-export async function showTrackingFab(product: DetectedProduct, lowestPrice?: number, registeredAt?: number): Promise<void> {
+export async function showTrackingFab(product: DetectedProduct, lowestPrice?: number, registeredAt?: number, lastCheckedAt?: number | null): Promise<void> {
   if (document.getElementById(FAB_ID)) return;
   injectStyles();
   const initialPos = await loadFabPosition();
@@ -285,7 +290,7 @@ export async function showTrackingFab(product: DetectedProduct, lowestPrice?: nu
   fab.addEventListener('click', () => {
     if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
     // activePosition: 클릭 시점의 최신 위치를 사용 (클로저 아님)
-    const panel = buildPanel(product, true, lowestPrice, registeredAt, activePosition);
+    const panel = buildPanel(product, true, lowestPrice, registeredAt, lastCheckedAt, activePosition);
     panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
     document.body.appendChild(panel);
   });
@@ -383,7 +388,7 @@ function transitionToTrackingFab(product: DetectedProduct): void {
       newFab.addEventListener('click', () => {
         if (document.getElementById(PANEL_ID)) { hideDialog(); return; }
         // 등록 시점 현재가를 최저가로 표시 (이후 가격 확인 전까지 최선)
-        const panel = buildPanel(product, true, product.price, Date.now(), activePosition);
+        const panel = buildPanel(product, true, product.price, Date.now(), null, activePosition);
         panel.querySelector<HTMLButtonElement>('.pg-close-btn')?.addEventListener('click', hideDialog);
         document.body.appendChild(panel);
       });

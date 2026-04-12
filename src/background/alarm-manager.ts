@@ -10,6 +10,16 @@ export async function registerDailyAlarm(): Promise<void> {
   }
 }
 
+/** 주기를 지정해 알람을 (재)생성한다. periodMinutes=null 이면 알람을 삭제(일시정지). */
+export async function applyAlarm(periodMinutes: number | null): Promise<void> {
+  await chrome.alarms.clear(ALARM_NAMES.DAILY_PRICE_CHECK);
+  if (periodMinutes === null) return;
+  await chrome.alarms.create(ALARM_NAMES.DAILY_PRICE_CHECK, {
+    periodInMinutes: periodMinutes,
+    delayInMinutes: 1,
+  });
+}
+
 export function onAlarmFired(alarmName: string, handler: () => Promise<void>): void {
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === alarmName) {

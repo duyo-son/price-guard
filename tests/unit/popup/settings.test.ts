@@ -20,6 +20,12 @@ function setupDOM(): void {
       <button class="pos-tile" data-pos="top-right">↗ 오른쪽 위</button>
       <button class="pos-tile" data-pos="bottom-left">↙ 왼쪽 아래</button>
       <button class="pos-tile" data-pos="bottom-right">↘ 오른쪽 아래</button>
+      <button class="pos-tile" data-interval="24h">하루 1회</button>
+      <button class="pos-tile" data-interval="6h">6시간</button>
+      <button class="pos-tile" data-interval="3h">3시간</button>
+      <button class="pos-tile" data-interval="paused">일시정지</button>
+      <button class="pos-tile" data-fab-toggle="on">표시</button>
+      <button class="pos-tile" data-fab-toggle="off">숨기기</button>
     </div>`;
 }
 

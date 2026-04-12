@@ -1,5 +1,5 @@
-import type { TrackedProduct, FabPosition, Message, MessageResponse, PriceRecord } from '../shared/types.js';
-import { STORAGE_KEYS, DEFAULT_FAB_POSITION } from '../shared/constants.js';
+import type { TrackedProduct, FabPosition, Message, MessageResponse, PriceRecord, CheckInterval } from '../shared/types.js';
+import { STORAGE_KEYS, DEFAULT_FAB_POSITION, AFFILIATE_CODES, DEFAULT_CHECK_INTERVAL, CHECK_INTERVAL_MINUTES, isCheckInterval } from '../shared/constants.js';
 
 async function sendMsg<T>(message: Message): Promise<MessageResponse<T>> {
   return chrome.runtime.sendMessage<Message, MessageResponse<T>>(message);
@@ -22,8 +22,8 @@ function setLoading(on: boolean): void {
   }
 }
 
-async function loadProducts(): Promise<void> {
-  setLoading(true);
+async function loadProducts(skipBlankState = false): Promise<void> {
+  if (!skipBlankState) setLoading(true);
   // MV3 Service Worker 콜드 스타트 시 1회 실패가 흔함 → 1초 간격으로 재시도
   const MAX = 3;
   for (let attempt = 0; attempt < MAX; attempt++) {
@@ -67,7 +67,35 @@ function renderProducts(products: TrackedProduct[]): void {
     return;
   }
 
-  container.innerHTML = products.map(productCardHTML).join('');
+  // 현재가 = 역대 최저가인 상품을 상단으로 정렬
+  const sorted = [...products].sort((a, b) => {
+    const aLow = a.priceHistory.length > 0 ? Math.min(...a.priceHistory.map(h => h.price)) : a.currentPrice;
+    const bLow = b.priceHistory.length > 0 ? Math.min(...b.priceHistory.map(h => h.price)) : b.currentPrice;
+    const aIsLowest = a.currentPrice <= aLow;
+    const bIsLowest = b.currentPrice <= bLow;
+    if (aIsLowest && !bIsLowest) return -1;
+    if (!aIsLowest && bIsLowest) return 1;
+    return 0;
+  });
+
+  container.innerHTML = sorted.map(productCardHTML).join('');
+
+  // CSP 제약 때문에 inline onerror 불가 — JS로 처리
+  container.querySelectorAll<HTMLImageElement>('img.product-thumb').forEach((img) => {
+    img.addEventListener('error', () => {
+      const placeholder = img.nextElementSibling as HTMLElement | null;
+      img.style.display = 'none';
+      if (placeholder) placeholder.style.display = 'flex';
+    });
+  });
+
+  container.querySelectorAll<HTMLElement>('[data-url]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-remove]')) return;
+      const url = card.dataset['url']!;
+      void chrome.tabs.create({ url: buildProductUrl(url) });
+    });
+  });
 
   container.querySelectorAll<HTMLButtonElement>('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -88,27 +116,37 @@ function productCardHTML(product: TrackedProduct): string {
     ? new Date(product.lastCheckedAt).toLocaleString('ko-KR', {
         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
       })
-    : '아직 확인 안 됨';
+    : '미확인';
+
+  const thumb = product.imageUrl.trim()
+    ? `<img class="product-thumb" src="${escapeAttr(product.imageUrl)}" alt="" loading="lazy">`+
+      `<div class="product-thumb-placeholder" style="display:none">🛒</div>`
+    : `<div class="product-thumb-placeholder">🛒</div>`;
 
   const graph = drawPriceGraph(history, product.id);
 
   return `
-    <div class="product-card">
-      <div class="product-name">${escapeHtml(product.name)}</div>
-      <div class="price-row">
-        <div class="price-item">
-          <span class="price-label">현재가</span>
-          <span class="price-val price-current${isCurrentLowest ? ' price-lowest' : ''}">${product.currentPrice.toLocaleString()}원</span>
+    <div class="product-card" data-url="${escapeAttr(product.url)}">
+      <div class="product-card-inner">
+        ${thumb}
+        <div class="product-body">
+          <div class="product-name">${escapeHtml(product.name)}</div>
+          <div class="price-row">
+            <div class="price-item">
+              <span class="price-label">현재가</span>
+              <span class="price-val price-current${isCurrentLowest ? ' price-lowest' : ''}">${product.currentPrice.toLocaleString()}원</span>
+            </div>
+            <div class="price-item">
+              <span class="price-label">최저가</span>
+              <span class="price-val price-lowest">${lowestPrice.toLocaleString()}원</span>
+            </div>
+          </div>
+          ${graph}
+          <div class="product-footer">
+            <span class="product-meta"><span class="checking-spinner"></span>${product.targetPrice ? `목표가 ${product.targetPrice.toLocaleString()}원 · ` : ''}<span class="last-checked">${lastChecked}</span></span>
+            <button class="btn-remove" data-remove="${product.id}">삭제</button>
+          </div>
         </div>
-        <div class="price-item">
-          <span class="price-label">최저가</span>
-          <span class="price-val price-lowest">${lowestPrice.toLocaleString()}원</span>
-        </div>
-      </div>
-      ${graph}
-      <div class="product-footer">
-        <span class="product-meta">${product.targetPrice ? `목표가 ${product.targetPrice.toLocaleString()}원 · ` : ''}${lastChecked}</span>
-        <button class="btn-remove" data-remove="${product.id}">삭제</button>
       </div>
     </div>`;
 }
@@ -151,10 +189,26 @@ function drawPriceGraph(history: PriceRecord[], productId: string): string {
     </div>`;
 }
 
+/** 추천인 코드가 등록된 경우 ?ref= 파라미터를 추가한다 */
+function buildProductUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const code = AFFILIATE_CODES[u.hostname];
+    if (code) u.searchParams.set('ref', code);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 function escapeHtml(str: string): string {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function escapeAttr(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function setStatus(msg: string): void {
@@ -164,8 +218,11 @@ function setStatus(msg: string): void {
 
 document.getElementById('btn-check-now')?.addEventListener('click', () => {
   setStatus('가격 확인 중...');
+  document.querySelectorAll<HTMLElement>('.product-card').forEach(card => {
+    card.classList.add('is-checking');
+  });
   void sendMsg({ type: 'PRICE_CHECK_NOW' })
-    .then(() => loadProducts())
+    .then(() => loadProducts(true))
     .then(() => {
       setStatus('확인 완료');
       setTimeout(() => setStatus('\u00a0'), 2500);
@@ -189,14 +246,41 @@ function markActivePosition(pos: FabPosition): void {
   });
 }
 
+function markActiveInterval(interval: CheckInterval): void {
+  const panel = document.getElementById('settings-panel');
+  if (!panel) return;
+  panel.querySelectorAll<HTMLButtonElement>('[data-interval]').forEach((tile) => {
+    tile.classList.toggle('active', tile.dataset['interval'] === interval);
+  });
+}
+
+function markActiveFabToggle(enabled: boolean): void {
+  const panel = document.getElementById('settings-panel');
+  if (!panel) return;
+  panel.querySelectorAll<HTMLButtonElement>('[data-fab-toggle]').forEach((tile) => {
+    tile.classList.toggle('active', tile.dataset['fabToggle'] === (enabled ? 'on' : 'off'));
+  });
+}
+
 async function initSettings(): Promise<void> {
   const btnSettings = document.getElementById('btn-settings') as HTMLButtonElement | null;
   const settingsPanel = document.getElementById('settings-panel');
   if (!btnSettings || !settingsPanel) return;
 
-  const res = await chrome.storage.local.get(STORAGE_KEYS.FAB_POSITION);
-  const raw: unknown = res[STORAGE_KEYS.FAB_POSITION];
-  markActivePosition(isFabPosition(raw) ? raw : DEFAULT_FAB_POSITION);
+  const res = await chrome.storage.local.get([
+    STORAGE_KEYS.FAB_POSITION,
+    STORAGE_KEYS.CHECK_INTERVAL,
+    STORAGE_KEYS.FAB_ENABLED,
+  ]);
+
+  const rawPos: unknown = res[STORAGE_KEYS.FAB_POSITION];
+  markActivePosition(isFabPosition(rawPos) ? rawPos : DEFAULT_FAB_POSITION);
+
+  const rawInterval: unknown = res[STORAGE_KEYS.CHECK_INTERVAL];
+  markActiveInterval(isCheckInterval(rawInterval) ? rawInterval : DEFAULT_CHECK_INTERVAL);
+
+  const fabEnabled = res[STORAGE_KEYS.FAB_ENABLED] !== false;
+  markActiveFabToggle(fabEnabled);
 
   btnSettings.addEventListener('click', () => {
     const isOpen = settingsPanel.classList.toggle('open');
@@ -209,6 +293,31 @@ async function initSettings(): Promise<void> {
       if (!isFabPosition(pos)) return;
       markActivePosition(pos);
       void chrome.storage.local.set({ [STORAGE_KEYS.FAB_POSITION]: pos });
+    });
+  });
+
+  settingsPanel.querySelectorAll<HTMLButtonElement>('[data-interval]').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      const interval = tile.dataset['interval'];
+      if (!isCheckInterval(interval)) return;
+      markActiveInterval(interval);
+      void chrome.storage.local.set({ [STORAGE_KEYS.CHECK_INTERVAL]: interval });
+      // 주기 변경 시 상태바에 피드백
+      const label = CHECK_INTERVAL_MINUTES[interval] === null
+        ? '가격 확인 일시정지됨'
+        : `확인 주기: ${tile.textContent?.trim() ?? interval}`;
+      setStatus(label);
+      setTimeout(() => setStatus('\u00a0'), 2500);
+    });
+  });
+
+  settingsPanel.querySelectorAll<HTMLButtonElement>('[data-fab-toggle]').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      const val = tile.dataset['fabToggle'];
+      if (val !== 'on' && val !== 'off') return;
+      const enabled = val === 'on';
+      markActiveFabToggle(enabled);
+      void chrome.storage.local.set({ [STORAGE_KEYS.FAB_ENABLED]: enabled });
     });
   });
 }
