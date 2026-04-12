@@ -15,6 +15,19 @@ export function createNaverSmartStoreDetector(doc: Document, url: string): SiteD
     extractProduct(): DetectedProduct | null {
       if (!this.isProductPage()) return null;
 
+      // SPA 전환 직후 DOM이 이전(리스트) 페이지를 반영하는 경우를 차단.
+      // canonical 또는 og:url이 존재하는데 productNo가 현재 URL과 다르면
+      // → 아직 이전 DOM → null 반환(재시도)
+      // canonical/og:url이 없으면 → 추출 시도 (canonical 없는 상품 페이지도 존재)
+      const urlProductNo = PRODUCT_URL_PATTERN.exec(url)?.[2];
+      const domRef =
+        doc.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href ??
+        doc.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.content;
+      if (domRef != null) {
+        const domProductNo = PRODUCT_URL_PATTERN.exec(domRef)?.[2];
+        if (domProductNo !== urlProductNo) return null;
+      }
+
       const name = extractName(doc);
       const price = extractPrice(doc);
       const imageUrl = extractImage(doc);

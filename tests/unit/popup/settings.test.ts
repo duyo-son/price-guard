@@ -121,3 +121,34 @@ describe('팝업 초기화 — 상품 목록', () => {
     );
   });
 });
+
+describe('팝업 — 최저가 상품 상단 정렬', () => {
+  it('현재가 = 역대 최저가인 상품이 상단에 표시된다', async () => {
+    const now = Date.now();
+    const lowestNow = {
+      id: 'low-001', name: '지금 최저 상품', url: 'https://example.com/1', imageUrl: '',
+      currentPrice: 10_000, targetPrice: null, notifyOnDiscount: false,
+      registeredAt: now, lastCheckedAt: now,
+      priceHistory: [{ price: 15_000, timestamp: now - 1000 }, { price: 10_000, timestamp: now }],
+    };
+    const notLowest = {
+      id: 'not-001', name: '최저 아닌 상품', url: 'https://example.com/2', imageUrl: '',
+      currentPrice: 20_000, targetPrice: null, notifyOnDiscount: false,
+      registeredAt: now, lastCheckedAt: now,
+      priceHistory: [{ price: 10_000, timestamp: now - 1000 }, { price: 20_000, timestamp: now }],
+    };
+    // 의도적으로 최저 아닌 상품을 먼저 배치
+    mockSend.mockResolvedValue({ success: true, data: [notLowest, lowestNow] });
+    await import('../../../src/popup/main.js');
+
+    await vi.waitFor(
+      () => {
+        const cards = document.querySelectorAll('.product-card');
+        expect(cards.length).toBe(2);
+        // 첫 번째 카드가 최저가 상품이어야 함
+        expect(cards[0]?.querySelector('.product-name')?.textContent).toBe('지금 최저 상품');
+      },
+      { timeout: 5000 },
+    );
+  });
+});

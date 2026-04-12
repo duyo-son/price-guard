@@ -93,7 +93,7 @@ describe('NaverSmartStoreDetector', () => {
       );
     });
 
-    it('canonical 없으면 URL에서 광고 파라미터를 제거한다', () => {
+    it('canonical 없어도 name/price가 있으면 정상 추출한다', () => {
       const dirtyUrl =
         'https://smartstore.naver.com/thebale/products/3894760006' +
         '?NaPm=ct%3Dmnp6hpdd%7Cci%3Dshopn&site_preference=device';
@@ -102,10 +102,10 @@ describe('NaverSmartStoreDetector', () => {
         '<meta property="product:price:amount" content="10000" />',
       );
       const detector = createNaverSmartStoreDetector(d, dirtyUrl);
+      // canonical 없어도 name/price가 있으면 추출 가능
       const product = detector.extractProduct();
-      expect(product?.url).toBe(
-        'https://smartstore.naver.com/thebale/products/3894760006',
-      );
+      expect(product).not.toBeNull();
+      expect(product?.price).toBe(10000);
     });
 
     it('brand.naver.com URL은 도메인을 유지하고 파라미터를 제거한다', () => {
@@ -113,6 +113,7 @@ describe('NaverSmartStoreDetector', () => {
         'https://brand.naver.com/oralbkr/products/5949880606' +
         '?NaPm=ct%3Dmnv3gt6q%7Cci%3DER3c533aac&nacn=ZYK4B8Qqv56K';
       const d = makeDoc(
+        '<link rel="canonical" href="https://brand.naver.com/oralbkr/products/5949880606" />' +
         '<meta property="og:title" content="오랄비 전동칫솔" />' +
         '<meta property="product:price:amount" content="55000" />',
       );
@@ -138,9 +139,41 @@ describe('NaverSmartStoreDetector', () => {
     });
 
     it('가격이 없으면 null을 반환한다', () => {
-      const d = makeDoc('<meta property="og:title" content="상품명" />');
+      // canonical을 포함해 DOM 준비됨을 나타내되, price:amount는 없음
+      const d = makeDoc(
+        '<link rel="canonical" href="https://smartstore.naver.com/thebale/products/3894760006" />' +
+        '<meta property="og:title" content="상품명" />',
+      );
       const detector = createNaverSmartStoreDetector(d, PRODUCT_URL);
       expect(detector.extractProduct()).toBeNull();
+    });
+
+    it('SPA 전환 직후 canonical이 리스트 URL이면 null을 반환한다 (재시도 대기)', () => {
+      // URL은 이미 상품 페이지이지만 DOM canonical은 아직 리스트 페이지
+      const d = makeDoc(`
+        <head>
+          <link rel="canonical" href="https://smartstore.naver.com/thebale" />
+          <meta property="og:title" content="리스트 페이지 타이틀" />
+          <script>{"salePrice":99000}</script>
+        </head>
+      `);
+      const detector = createNaverSmartStoreDetector(d, PRODUCT_URL);
+      expect(detector.extractProduct()).toBeNull();
+    });
+
+
+    it('og:url의 productNo가 일치하면 정상 추출한다', () => {
+      const d = makeDoc(`
+        <head>
+          <meta property="og:url" content="https://smartstore.naver.com/thebale/products/3894760006" />
+          <meta property="og:title" content="og url 테스트 상품" />
+          <meta property="product:price:amount" content="25000" />
+        </head>
+      `);
+      const detector = createNaverSmartStoreDetector(d, PRODUCT_URL);
+      const product = detector.extractProduct();
+      expect(product).not.toBeNull();
+      expect(product?.price).toBe(25000);
     });
   });
 });

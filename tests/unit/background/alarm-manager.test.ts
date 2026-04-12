@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerDailyAlarm } from '../../../src/background/alarm-manager.js';
+import { registerDailyAlarm, applyAlarm } from '../../../src/background/alarm-manager.js';
 import { ALARM_NAMES, ALARM_PERIOD_MINUTES } from '../../../src/shared/constants.js';
 
 // @types/chrome의 alarms.get 마지막 오버로드가 Promise<Alarm> (undefined 불허)이므로
@@ -33,6 +33,31 @@ describe('registerDailyAlarm()', () => {
 
     await registerDailyAlarm();
 
+    expect(chrome.alarms.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyAlarm()', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(chrome.alarms.clear).mockResolvedValue(undefined);
+    vi.mocked(chrome.alarms.create).mockResolvedValue(undefined);
+  });
+
+  it('주기 분 수를 전달하면 기존 알람을 지우고 새로 생성한다', async () => {
+    await applyAlarm(360); // 6시간
+
+    expect(chrome.alarms.clear).toHaveBeenCalledWith(ALARM_NAMES.DAILY_PRICE_CHECK);
+    expect(chrome.alarms.create).toHaveBeenCalledWith(ALARM_NAMES.DAILY_PRICE_CHECK, {
+      periodInMinutes: 360,
+      delayInMinutes: 1,
+    });
+  });
+
+  it('null(일시정지)이면 알람을 삭제하고 생성하지 않는다', async () => {
+    await applyAlarm(null);
+
+    expect(chrome.alarms.clear).toHaveBeenCalledWith(ALARM_NAMES.DAILY_PRICE_CHECK);
     expect(chrome.alarms.create).not.toHaveBeenCalled();
   });
 });

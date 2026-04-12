@@ -184,3 +184,46 @@ describe('기존 메시지 타입 회귀', () => {
     expect(res).toEqual({ success: false, error: 'Unknown message type' });
   });
 });
+
+// ── updateAlertBadge ─────────────────────────────────────────────────────────
+
+describe('updateAlertBadge — 목표가 달성 배지', () => {
+  it('목표가 달성 상품이 있으면 달성 수를 전역 배지로 표시한다', async () => {
+    const products = [
+      {
+        id: 'a1', name: '달성 상품', url: 'https://example.com/1', imageUrl: '',
+        currentPrice: 39_000, targetPrice: 40_000, notifyOnDiscount: false,
+        registeredAt: Date.now(), lastCheckedAt: null, priceHistory: [],
+      },
+      {
+        id: 'a2', name: '미달성 상품', url: 'https://example.com/2', imageUrl: '',
+        currentPrice: 80_000, targetPrice: 50_000, notifyOnDiscount: false,
+        registeredAt: Date.now(), lastCheckedAt: null, priceHistory: [],
+      },
+    ];
+    mockGet.mockResolvedValue({ price_guard_products: products });
+    vi.mocked(chrome.storage.local.set).mockResolvedValue(undefined);
+    await loadBackground();
+
+    await callListener({ type: 'PRODUCT_REGISTER', payload: {
+      name: '신규', url: 'https://example.com/3', imageUrl: '',
+      currentPrice: 10_000, targetPrice: null, notifyOnDiscount: false,
+    }});
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '1' });
+    expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#e53e3e' });
+  });
+
+  it('목표가 달성 상품이 없으면 전역 배지를 지운다', async () => {
+    mockGet.mockResolvedValue({ price_guard_products: [] });
+    vi.mocked(chrome.storage.local.set).mockResolvedValue(undefined);
+    await loadBackground();
+
+    await callListener({ type: 'PRODUCT_REGISTER', payload: {
+      name: '신규', url: 'https://example.com/9', imageUrl: '',
+      currentPrice: 100_000, targetPrice: null, notifyOnDiscount: false,
+    }});
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+  });
+});

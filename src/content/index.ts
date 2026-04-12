@@ -13,13 +13,17 @@ const RETRY_DELAY_MS = 3000;
 // 상품 페이지가 아닌 네이버 도메인 패턴 (검색·리스트 등)
 const NAVER_NON_PRODUCT_PATTERN = /(?:search\.shopping\.naver\.com|search\.naver\.com|shopping\.naver\.com\/search)/;
 
+/** URL이 상품 페이지가 아닌 리스트/홈 등으로 판단되면 true를 반환한다 (테스트 가능하도록 export) */
+export function isBlockedUrl(url: string): boolean {
+  if (/shop\.coupang\.com/.test(url)) return true;
+  if (NAVER_NON_PRODUCT_PATTERN.test(url)) return true;
+  if (/(?:smartstore|brand)\.naver\.com/.test(url) && !/\/products\//.test(url)) return true;
+  if (/aliexpress\./.test(url) && !/aliexpress\.[a-z.]+\/item\/\d+\.html/.test(url)) return true;
+  return false;
+}
+
 function selectDetector(doc: Document, url: string): ReturnType<typeof createGenericDetector> {
-  // shop.coupang.com — 쿠팡 브랜드스토어 리스트 페이지, 상품 페이지 아님
-  if (/shop\.coupang\.com/.test(url)) {
-    return { isProductPage: () => false, extractProduct: () => null };
-  }
-  // 네이버 검색/리스트 페이지 — 상품 페이지 아님
-  if (NAVER_NON_PRODUCT_PATTERN.test(url)) {
+  if (isBlockedUrl(url)) {
     return { isProductPage: () => false, extractProduct: () => null };
   }
   if (/coupang\.com\/vp\/products\//.test(url)) {
@@ -30,10 +34,6 @@ function selectDetector(doc: Document, url: string): ReturnType<typeof createGen
   }
   if (/aliexpress\.[a-z.]+\/item\/\d+\.html/.test(url)) {
     return createAliExpressDetector(doc, url);
-  }
-  // 알리익스프레스 리스트/카테고리 페이지 차단 (aliexpress 도메인이지만 상품 URL 아님)
-  if (/aliexpress\./.test(url)) {
-    return { isProductPage: () => false, extractProduct: () => null };
   }
   return createGenericDetector(doc, url);
 }
@@ -69,11 +69,17 @@ async function sendDetectedMessage(
  * 상품 페이지 감지 및 패널 표시.
  * React/동적 렌더링 사이트는 가격을 나중에 주입하므로 실패 시 재시도.
  * targetHref: 시작 시점의 URL (SPA 내비게이션으로 변경되면 즉시 취소)
+ * detectId: tryDetectAndShow 호출마다 증가 — 이전 체인의 setTimeout 리트라이를 무효화한다
  */
-async function attemptDetect(targetHref: string, retryCount: number): Promise<void> {
+let currentDetectId = 0;
+
+async function attemptDetect(targetHref: string, retryCount: number, detectId: number): Promise<void> {
   try {
-    // URL이 이미 바뀌었으면 중단 (SPA 이동)
-    if (location.href !== targetHref) return;
+    // 새 navigation이 시작됐으면 이 체인 전체 취소
+    if (detectId !== currentDetectId) return;
+    // pathname이 달라졌으면 중단 (다른 페이지로 이동)
+    // 쿼리 파라미터 변경(Naver replaceState 등)은 같은 상품 페이지로 간주
+    if (new URL(location.href).pathname !== new URL(targetHref).pathname) return;
 
     const detector = selectDetector(document, targetHref);
 
@@ -101,7 +107,7 @@ async function attemptDetect(targetHref: string, retryCount: number): Promise<vo
       }
     } else if (retryCount < MAX_RETRIES) {
       console.log(LOG, `추출 실패 (재시도 ${RETRY_DELAY_MS}ms 후)...`);
-      setTimeout(() => { void attemptDetect(targetHref, retryCount + 1); }, RETRY_DELAY_MS);
+      setTimeout(() => { void attemptDetect(targetHref, retryCount + 1, detectId); }, RETRY_DELAY_MS);
     } else {
       console.log(LOG, '상품 정보 추출 최종 실패 — 패널 미표시');
       void sendDetectedMessage(false);
@@ -113,9 +119,10 @@ async function attemptDetect(targetHref: string, retryCount: number): Promise<vo
 }
 
 function tryDetectAndShow(): void {
-  // SPA 이동 시 이전 패널 제거
+  // SPA 이동 시 이전 패널 제거 + 이전 리트라이 체인 모두 취소
   hideRegisterPanel();
-  void attemptDetect(location.href, 0);
+  const detectId = ++currentDetectId;
+  void attemptDetect(location.href, 0, detectId);
 }
 
 // DOM 준비 후 실행
@@ -126,10 +133,11 @@ if (document.readyState === 'loading') {
 }
 
 // SPA(싱글 페이지 앱) 내비게이션 감지
-let lastHref = location.href;
+// pathname이 바뀔 때만 트리거 — Naver의 replaceState(쿼리 파라미터 추가 등)는 무시
+let lastPathname = location.pathname;
 const observer = new MutationObserver(() => {
-  if (location.href !== lastHref) {
-    lastHref = location.href;
+  if (location.pathname !== lastPathname) {
+    lastPathname = location.pathname;
     tryDetectAndShow();
   }
 });
