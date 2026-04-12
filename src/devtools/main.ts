@@ -203,7 +203,7 @@ async function renderProducts(): Promise<void> {
   container.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset['delete'] ?? '';
-      void (async () => {
+      void (async (): Promise<void> => {
         const all = await getAllProducts();
         await setAllProducts(all.filter(p => p.id !== id));
         showToast('🗑 상품이 삭제되었습니다.');
@@ -242,7 +242,7 @@ async function renderProducts(): Promise<void> {
           return;
         }
         const timestamp = new Date(dateVal).getTime();
-        void (async () => {
+        void (async (): Promise<void> => {
           const all = await getAllProducts();
           const target = all.find(p => p.id === id);
           if (target) {
@@ -265,7 +265,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((btn) => {
     const key = btn.dataset['preset'] ?? '';
     const data = PRESETS[key];
     if (!data) return;
-    void (async () => {
+    void (async (): Promise<void> => {
       await setAllProducts(data.map(p => ({ ...p, id: makeId() })));
       const labelEl = btn.querySelector('.label');
       showToast(`✅ "${labelEl?.textContent ?? key}" 프리셋이 로드되었습니다.`);
@@ -315,7 +315,7 @@ document.getElementById('add-form')?.addEventListener('submit', (e) => {
     registeredAt, lastCheckedAt: historyDays > 0 ? Date.now() - DAY_MS : null, priceHistory,
   };
 
-  void (async () => {
+  void (async (): Promise<void> => {
     const all = await getAllProducts();
     all.push(product);
     await setAllProducts(all);
@@ -351,7 +351,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-pos]').forEach((btn) => {
 
 document.getElementById('btn-clear-all')?.addEventListener('click', () => {
   if (!confirm('정말로 모든 추적 데이터를 삭제하시겠습니까?')) return;
-  void (async () => {
+  void (async (): Promise<void> => {
     await chrome.storage.local.clear();
     showToast('🗑 전체 데이터가 삭제되었습니다.');
     await renderProducts();
@@ -361,7 +361,7 @@ document.getElementById('btn-clear-all')?.addEventListener('click', () => {
 
 // ── 초기화 ────────────────────────────────────────────────────────────────────
 
-void (async () => {
+void (async (): Promise<void> => {
   await renderProducts();
   const pos = await getFabPosition();
   markActivePosButton(pos);

@@ -1,4 +1,5 @@
 import { createGenericDetector } from './detector.js';
+import { createAliExpressDetector } from './sites/aliexpress.js';
 import { createCoupangDetector } from './sites/coupang.js';
 import { createNaverSmartStoreDetector } from './sites/naver-smartstore.js';
 import { showRegisterPanel, showTrackingFab, hideRegisterPanel } from './register-panel.js';
@@ -6,7 +7,7 @@ import type { ProductDetectedPayload } from '../shared/types.js';
 
 const LOG = '[PriceGuard]';
 const MAX_RETRIES = 4;
-const RETRY_DELAY_MS = 1000;
+const RETRY_DELAY_MS = 3000;
 
 // 상품 페이지가 아닌 네이버 도메인 패턴 (검색·리스트 등)
 const NAVER_NON_PRODUCT_PATTERN = /(?:search\.shopping\.naver\.com|search\.naver\.com|shopping\.naver\.com\/search)/;
@@ -25,6 +26,13 @@ function selectDetector(doc: Document, url: string): ReturnType<typeof createGen
   }
   if (/(?:smartstore|brand)\.naver\.com\/[^/]+\/products\//.test(url)) {
     return createNaverSmartStoreDetector(doc, url);
+  }
+  if (/aliexpress\.[a-z.]+\/item\/\d+\.html/.test(url)) {
+    return createAliExpressDetector(doc, url);
+  }
+  // 알리익스프레스 리스트/카테고리 페이지 차단 (aliexpress 도메인이지만 상품 URL 아님)
+  if (/aliexpress\./.test(url)) {
+    return { isProductPage: () => false, extractProduct: () => null };
   }
   return createGenericDetector(doc, url);
 }

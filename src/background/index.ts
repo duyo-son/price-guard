@@ -3,6 +3,7 @@ import type { Message, ProductRegisterPayload, TrackedProduct, ProductDetectedPa
 import { ALARM_NAMES, REQUEST_INTERVAL_MS, MIN_MANUAL_CHECK_INTERVAL_MS } from '../shared/constants.js';
 import { registerDailyAlarm, onAlarmFired } from './alarm-manager.js';
 import { notifyTargetPriceMet, notifyPriceDropped } from './notifier.js';
+import { fetchAliExpressPrice } from './sites/aliexpress.js';
 import { fetchCoupangPrice } from './sites/coupang.js';
 import { fetchNaverSmartStorePrice } from './sites/naver-smartstore.js';
 import { RateLimitError } from './errors.js';
@@ -175,6 +176,9 @@ function fetchCurrentPrice(url: string): Promise<number | null> {
   }
   if (/(?:smartstore|brand)\.naver\.com\/[^/]+\/products\//.test(url)) {
     return fetchNaverSmartStorePrice(url);
+  }
+  if (/aliexpress\.[a-z.]+\/item\/\d+\.html/.test(url)) {
+    return fetchAliExpressPrice(url);
   }
   return Promise.resolve(null);
 }
