@@ -46,6 +46,22 @@ describe('NaverSmartStoreDetector', () => {
       const detector = createNaverSmartStoreDetector(doc, 'https://www.coupang.com/');
       expect(detector.isProductPage()).toBe(false);
     });
+
+    it('brand.naver.com 상품 URL에서 true를 반환한다', () => {
+      const detector = createNaverSmartStoreDetector(
+        doc,
+        'https://brand.naver.com/oralbkr/products/5949880606',
+      );
+      expect(detector.isProductPage()).toBe(true);
+    });
+
+    it('search.shopping.naver.com에서 false를 반환한다', () => {
+      const detector = createNaverSmartStoreDetector(
+        doc,
+        'https://search.shopping.naver.com/ns/search?query=oralb',
+      );
+      expect(detector.isProductPage()).toBe(false);
+    });
   });
 
   describe('extractProduct()', () => {
@@ -89,6 +105,21 @@ describe('NaverSmartStoreDetector', () => {
       const product = detector.extractProduct();
       expect(product?.url).toBe(
         'https://smartstore.naver.com/thebale/products/3894760006',
+      );
+    });
+
+    it('brand.naver.com URL은 도메인을 유지하고 파라미터를 제거한다', () => {
+      const brandUrl =
+        'https://brand.naver.com/oralbkr/products/5949880606' +
+        '?NaPm=ct%3Dmnv3gt6q%7Cci%3DER3c533aac&nacn=ZYK4B8Qqv56K';
+      const d = makeDoc(
+        '<meta property="og:title" content="오랄비 전동칫솔" />' +
+        '<meta property="product:price:amount" content="55000" />',
+      );
+      const detector = createNaverSmartStoreDetector(d, brandUrl);
+      const product = detector.extractProduct();
+      expect(product?.url).toBe(
+        'https://brand.naver.com/oralbkr/products/5949880606',
       );
     });
 

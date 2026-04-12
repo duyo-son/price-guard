@@ -8,11 +8,22 @@ const LOG = '[PriceGuard]';
 const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 1000;
 
+// 상품 페이지가 아닌 네이버 도메인 패턴 (검색·리스트 등)
+const NAVER_NON_PRODUCT_PATTERN = /(?:search\.shopping\.naver\.com|search\.naver\.com|shopping\.naver\.com\/search)/;
+
 function selectDetector(doc: Document, url: string): ReturnType<typeof createGenericDetector> {
+  // shop.coupang.com — 쿠팡 브랜드스토어 리스트 페이지, 상품 페이지 아님
+  if (/shop\.coupang\.com/.test(url)) {
+    return { isProductPage: () => false, extractProduct: () => null };
+  }
+  // 네이버 검색/리스트 페이지 — 상품 페이지 아님
+  if (NAVER_NON_PRODUCT_PATTERN.test(url)) {
+    return { isProductPage: () => false, extractProduct: () => null };
+  }
   if (/coupang\.com\/vp\/products\//.test(url)) {
     return createCoupangDetector(doc, url);
   }
-  if (/smartstore\.naver\.com\/[^/]+\/products\//.test(url)) {
+  if (/(?:smartstore|brand)\.naver\.com\/[^/]+\/products\//.test(url)) {
     return createNaverSmartStoreDetector(doc, url);
   }
   return createGenericDetector(doc, url);

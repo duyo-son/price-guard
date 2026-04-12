@@ -1,9 +1,10 @@
 import type { SiteDetector, DetectedProduct } from '../detector.js';
 import { parsePrice } from '../detector.js';
 
-// 네이버 스마트스토어 상품 URL: /products/{productNo}
+// 네이버 스마트스토어 / 브랜드스토어 상품 URL: /products/{productNo}
+// 지원 도메인: smartstore.naver.com, brand.naver.com
 // group1 = store, group2 = productNo
-const PRODUCT_URL_PATTERN = /smartstore\.naver\.com\/([^/]+)\/products\/(\d+)/;
+const PRODUCT_URL_PATTERN = /(?:smartstore|brand)\.naver\.com\/([^/]+)\/products\/(\d+)/;
 
 export function createNaverSmartStoreDetector(doc: Document, url: string): SiteDetector {
   return {
@@ -184,8 +185,9 @@ function extractCanonicalUrl(doc: Document, fallbackUrl: string): string {
 
   const m = PRODUCT_URL_PATTERN.exec(fallbackUrl);
   if (m) {
-    // group1 = store, group2 = productNo
-    return `https://smartstore.naver.com/${m[1]}/products/${m[2]}`;
+    // brand.naver.com URL은 그대로 유지, smartstore는 정규화
+    const domain = /brand\.naver\.com/.test(fallbackUrl) ? 'brand.naver.com' : 'smartstore.naver.com';
+    return `https://${domain}/${m[1]}/products/${m[2]}`;
   }
   return fallbackUrl;
 }

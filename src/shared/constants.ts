@@ -12,6 +12,12 @@ export const ALARM_NAMES = {
 // 24시간마다 가격 체크 (분 단위)
 export const ALARM_PERIOD_MINUTES = 24 * 60;
 
+// 상품 간 요청 간격 (ms) — 쇼핑몰 차단 방지
+export const REQUEST_INTERVAL_MS = 3_000;
+
+// 수동 확인 시 최소 재확인 간격 (1시간) — 연속 클릭 방지
+export const MIN_MANUAL_CHECK_INTERVAL_MS = 60 * 60 * 1_000;
+
 export const NOTIFICATION_MESSAGES = {
   targetPriceMet: (name: string, price: number) =>
     `"${name}" 가격이 목표가(${price.toLocaleString()}원)에 도달했습니다!`,

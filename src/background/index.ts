@@ -1,10 +1,11 @@
 import { createStorageService } from '../shared/storage.js';
 import type { Message, ProductRegisterPayload, TrackedProduct, ProductDetectedPayload } from '../shared/types.js';
-import { ALARM_NAMES } from '../shared/constants.js';
+import { ALARM_NAMES, REQUEST_INTERVAL_MS, MIN_MANUAL_CHECK_INTERVAL_MS } from '../shared/constants.js';
 import { registerDailyAlarm, onAlarmFired } from './alarm-manager.js';
 import { notifyTargetPriceMet, notifyPriceDropped } from './notifier.js';
 import { fetchCoupangPrice } from './sites/coupang.js';
 import { fetchNaverSmartStorePrice } from './sites/naver-smartstore.js';
+import { RateLimitError } from './errors.js';
 
 const storage = createStorageService();
 
@@ -21,8 +22,8 @@ chrome.runtime.onStartup.addListener(() => {
   );
 });
 
-// 알람 이벤트 → 가격 체크
-onAlarmFired(ALARM_NAMES.DAILY_PRICE_CHECK, checkAllPrices);
+// 알람 이벤트 → 가격 체크 (일일 알람: 전체 강제 확인)
+onAlarmFired(ALARM_NAMES.DAILY_PRICE_CHECK, () => checkAllPrices(true));
 
 // Content script / Popup 메시지 처리
 chrome.runtime.onMessage.addListener(
@@ -105,7 +106,8 @@ async function handleMessage(
     }
 
     case 'PRICE_CHECK_NOW': {
-      await checkAllPrices();
+      // 수동 확인: 최근 1시간 내 확인된 상품은 건너뜀
+      await checkAllPrices(false);
       return { success: true };
     }
 
@@ -114,18 +116,40 @@ async function handleMessage(
   }
 }
 
-async function checkAllPrices(): Promise<void> {
+/**
+ * 전체 상품 가격 확인
+ * @param forceAll true = 일일 알람 (전체 확인), false = 수동 확인 (최근 확인 스킵)
+ */
+async function checkAllPrices(forceAll = true): Promise<void> {
   const products = await storage.getProducts();
+  const now = Date.now();
 
-  for (const product of products) {
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i]!;
+
+    // 수동 확인 시 MIN_MANUAL_CHECK_INTERVAL_MS 이내 확인된 상품은 스킵
+    if (
+      !forceAll &&
+      product.lastCheckedAt !== null &&
+      now - product.lastCheckedAt < MIN_MANUAL_CHECK_INTERVAL_MS
+    ) {
+      console.log(`[PriceGuard] 최근 확인됨, 스킵: ${product.name}`);
+      continue;
+    }
+
+    // 2번째 상품부터 요청 간격 대기 (쇼핑몰 차단 방지)
+    if (i > 0) {
+      await new Promise<void>((r) => setTimeout(r, REQUEST_INTERVAL_MS));
+    }
+
     try {
       const newPrice = await fetchCurrentPrice(product.url);
       if (newPrice === null) continue;
 
       const previousPrice = product.currentPrice;
       product.currentPrice = newPrice;
-      product.lastCheckedAt = Date.now();
-      product.priceHistory.push({ price: newPrice, timestamp: Date.now() });
+      product.lastCheckedAt = now;
+      product.priceHistory.push({ price: newPrice, timestamp: now });
 
       await storage.updateProduct(product);
 
@@ -135,6 +159,10 @@ async function checkAllPrices(): Promise<void> {
         notifyPriceDropped(product, previousPrice);
       }
     } catch (err) {
+      if (err instanceof RateLimitError) {
+        console.warn(`[PriceGuard] 요청 차단됨 (429) — 나머지 확인 중단`);
+        break;
+      }
       console.error(`[PriceGuard] Failed to check price for ${product.url}:`, err);
     }
   }
@@ -145,7 +173,7 @@ function fetchCurrentPrice(url: string): Promise<number | null> {
   if (/coupang\.com\/vp\/products\//.test(url)) {
     return fetchCoupangPrice(url);
   }
-  if (/smartstore\.naver\.com\/[^/]+\/products\//.test(url)) {
+  if (/(?:smartstore|brand)\.naver\.com\/[^/]+\/products\//.test(url)) {
     return fetchNaverSmartStorePrice(url);
   }
   return Promise.resolve(null);

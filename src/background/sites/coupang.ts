@@ -1,6 +1,8 @@
 // 쿠팡 상품 페이지에서 현재 가격을 가져옵니다.
 // Service Worker 환경이므로 DOM API 사용 불가 → 정규식으로 파싱
 
+import { RateLimitError } from '../errors.js';
+
 export async function fetchCoupangPrice(url: string): Promise<number | null> {
   // vendorItemId를 포함한 정규화된 URL로 요청
   const targetUrl = normalizeCoupangUrl(url);
@@ -16,6 +18,7 @@ export async function fetchCoupangPrice(url: string): Promise<number | null> {
         Referer: 'https://www.coupang.com/',
       },
     });
+    if (res.status === 429) throw new RateLimitError();
     if (!res.ok) return null;
     html = await res.text();
   } catch {

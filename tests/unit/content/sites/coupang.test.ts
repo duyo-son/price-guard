@@ -36,6 +36,14 @@ describe('CoupangDetector', () => {
       expect(detector.isProductPage()).toBe(true);
     });
 
+    it('쿠팡 브랜드스토어(shop.coupang.com) URL에서 false를 반환한다', () => {
+      const detector = createCoupangDetector(
+        doc,
+        'https://shop.coupang.com/ottogi/301273?source=brandstore_display_ads',
+      );
+      expect(detector.isProductPage()).toBe(false);
+    });
+
     it('쿠팡 검색 페이지에서 false를 반환한다', () => {
       const detector = createCoupangDetector(doc, 'https://www.coupang.com/np/search?q=이어폰');
       expect(detector.isProductPage()).toBe(false);
