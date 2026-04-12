@@ -9,6 +9,8 @@ import { STORAGE_KEYS } from '../shared/constants.js';
 const LOG = '[PriceGuard]';
 const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 3000;
+// SPA 이동 후 Naver가 DOM/replaceState를 안정화할 때까지 기다리는 초기 지연
+const SPA_INITIAL_DELAY_MS = 5000;
 
 // 상품 페이지가 아닌 네이버 도메인 패턴 (검색·리스트 등)
 const NAVER_NON_PRODUCT_PATTERN = /(?:search\.shopping\.naver\.com|search\.naver\.com|shopping\.naver\.com\/search)/;
@@ -118,16 +120,16 @@ async function attemptDetect(targetHref: string, retryCount: number, detectId: n
   }
 }
 
-function tryDetectAndShow(): void {
+function tryDetectAndShow(initialDelay = 0): void {
   // SPA 이동 시 이전 패널 제거 + 이전 리트라이 체인 모두 취소
   hideRegisterPanel();
   const detectId = ++currentDetectId;
-  void attemptDetect(location.href, 0, detectId);
+  setTimeout(() => { void attemptDetect(location.href, 0, detectId); }, initialDelay);
 }
 
 // DOM 준비 후 실행
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', tryDetectAndShow);
+  document.addEventListener('DOMContentLoaded', () => { tryDetectAndShow(); });
 } else {
   tryDetectAndShow();
 }
@@ -138,7 +140,8 @@ let lastPathname = location.pathname;
 const observer = new MutationObserver(() => {
   if (location.pathname !== lastPathname) {
     lastPathname = location.pathname;
-    tryDetectAndShow();
+    // URL 변경 후 5초 대기 — Naver SPA가 새 DOM/replaceState를 완전히 안정화하도록
+    tryDetectAndShow(SPA_INITIAL_DELAY_MS);
   }
 });
 observer.observe(document.documentElement, { subtree: true, childList: true });
